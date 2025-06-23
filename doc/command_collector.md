@@ -1,23 +1,12 @@
-# 命令收集器 (cccmd)
+# cccmd
 
-[命令收集器 (cccmd)](https://gitee.com/binnchern/command_collector.git) 是一个通过命令行收集和管理常用命令的工具。使用 [pipx](https://pypa.github.io/pipx/) 管理代码，不影响全局环境。
+命令收集器，是一个通过命令行收集和管理常用命令的命令行工具。
 
 ## 功能特性
 
 - 按模块分类存储命令
 - 支持命令的添加、删除、查询
 - 支持全局搜索命令
-- 运行在python虚拟环境中，不干扰全局环境
-
-## 安装
-开发模式安装
-```bash
-pipx install -e .
-```
-发布模式安装
-```bash
-pipx install .
-```
 
 ## 使用方法
 
@@ -69,31 +58,7 @@ cccmd search <关键词>
 
 可以通过设置环境变量`STORAGE_DIR`来更改命令存储目录，默认为`~/.command_collector`
 
-## 开发
-1. 克隆仓库
-```bash
-git clone https://gitee.com/binnchern/command_collector.git
-```
-2. 安装pipx
-```bash
-pip install pipx
-```
-3. 开发模式安装
-```bash
-pipx install -e.
-```
 
-## 常见问题
-**项目运行在pipx创建的虚拟环境，依赖新的包时，如何添加依赖？**
-在 [pyproject.toml](https://packaging.python.org/en/latest/guides/writing-pyproject-toml/) 文件中添加依赖，然后运行以下命令：
-```bash
-pipx install -f -e .
-```
-或者基于调试，直接安装到pipx管理的虚拟环境中：
-```bash
-pipx inject command_collector <包名>
-# 例如：pipx inject command_collector json5
-```
 
 
 
