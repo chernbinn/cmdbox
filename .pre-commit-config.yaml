@@ -1,0 +1,9 @@
+repos:
+- repo: local
+  hooks:
+    - id: freeze-version
+      name: Freeze version
+      entry: python freeze_version.py
+      language: system
+      stages: [commit-msg]
+      verbose: true

@@ -1,0 +1,98 @@
+# wrapper_template.py
+import os
+import sys
+import json
+import time
+import threading
+from datetime import datetime
+import subprocess
+
+start_time = datetime.now().isoformat()
+pid = os.getpid()
+
+def stderr_print(line):
+    """
+    if os.name == 'nt':
+        try:
+            line_str = line.decode('gbk', errors='replace').rstrip('\n')
+        except UnicodeDecodeError:
+            line_str = line.decode('utf-8', errors='replace').rstrip('\n')
+    else:
+        line_str = line.decode('utf-8', errors='replace').rstrip('\n')
+    print(line_str, file=sys.stderr)
+    """
+    print(line, file=sys.stderr)
+
+def read_stream(stream, output_file, is_stderr=False):
+    for line in iter(stream.readline, ''):
+        if not line:
+            break
+        output_file.write(line)
+        output_file.flush()
+        if is_stderr:
+            stderr_print(line)
+
+def tee_output(output_file, line, stream):
+    output_file.write(line)
+    output_file.flush()
+    if stream == sys.stderr:
+        stderr_print(line)
+    else:
+        #line_str = line.decode('utf-8', errors='replace').rstrip('\n')
+        #print(line_str, file=stream)
+        print(line, file=stream)
+
+def update_status(status):
+    try:
+        with open({{ db_file|tojson }}, 'r', encoding='utf-8') as f:
+            db = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        db = {"tasks": {}}
+
+    task_data = db["tasks"].get({{ task_id|tojson }}, {})
+    task_data.update({
+        "pid": pid,
+        "command": {{ command|tojson }},
+        "status": status,
+        "start_time": start_time,
+        "log_file": {{ log_file|tojson }},
+        "name": {{ name|tojson }},
+    })
+    db["tasks"][{{ task_id|tojson }}] = task_data
+
+    with open({{ db_file|tojson }}, 'w', encoding='utf-8') as f:
+        # json.dump(db, f, indent=2, ensure_ascii=False)
+        json.dump(db, f, indent=2)
+
+try:
+    while True:
+        with open({{ log_file|tojson }}, 'a', encoding='utf-8') as f:
+            f.write(f'command: {{ command|tojson }}\n\n')
+            f.flush()
+            proc = subprocess.Popen(
+                {{ command|tojson }},
+                shell=True,
+                stdin=subprocess.DEVNULL,
+                stdout=f,
+                stderr=subprocess.PIPE,
+                bufsize=1,
+                universal_newlines=True,
+                creationflags=0x08000000 if os.name == 'nt' else 0
+            )
+
+            stderr_thread = threading.Thread(
+                target=read_stream, 
+                args=(proc.stderr, f, True), daemon=True)
+            stderr_thread.start()
+
+            exit_code = proc.wait()
+            stderr_thread.join()
+            tee_output(f, f"Task(pid:{pid}) exit_code: {exit_code}\n\n", sys.stderr)
+            if exit_code == 0 or not {% if until_succeed %}True{% else %}False{% endif %}:
+                update_status("completed")
+                break
+            time.sleep({{interval}})
+except Exception as e:
+    with open({{ log_file|tojson }}, 'ab') as f:
+        tee_output(f, f"Task(pid:{pid}) exception Error: {e}\n".encode('utf-8'), sys.stderr)
+    update_status("failed")

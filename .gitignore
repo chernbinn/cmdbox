@@ -1,0 +1,14 @@
+build
+dist
+
+*.egg-info
+*.log
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.whl
+*.egg
+*.dist-info
+*.egg-info
+_version.py

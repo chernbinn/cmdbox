@@ -1,0 +1,429 @@
+import logging
+import os
+import subprocess
+from setuptools_git_versioning import (
+    get_version, 
+    get_branch, 
+    get_tag, 
+    _tag_filter_factory,
+    _tag_formatter_factory,
+    _callable_factory,
+    _exec
+)
+from logger_config import (
+    logger_third_module,
+    get_logging_logger,
+    get_print_logger
+)
+
+config = {
+        "enabled": True,
+        "starting_version": "0.0.0",
+        "template": "{tag}",
+        "dev_template": "{tag}.{ccount}",
+        "dirty_template": "{tag}.{ccount}+dirty",
+        "tag_filter": "^git_version_(?P<tag>v?\d+\.\d+\.\d+)$", # 过滤符合条件的tag
+        "tag_formatter": "^.*?(?P<tag>\d+\.\d+\.\d+).*" # 对tag进行提取，提取出纯村的版本号：x.y.z
+    }
+
+# logger_third_module("setuptools_git_versioning", setuptools_git_versioning.DEBUG)
+logger = get_print_logger(__name__, logging.DEBUG)
+#logger = get_logging_logger(__name__, logging.DEBUG)
+
+def print_func(func):
+    def wrapper(*args, **kws):
+        logger.debug(f"\nfunc: {func.__name__}")
+        res = func(*args, **kws)
+        logger.debug(f"func: {func.__name__} end")
+        return res
+    return wrapper
+
+def singleton(cls):
+    instances = {}
+    def get_instance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    return get_instance
+
+class Version():
+    def __init__(self, version: str):
+        try:
+            version = version.lstrip('v')  # 去除可能的'v'前缀
+            parts = version.split('.')
+            if len(parts) != 3:
+                raise ValueError("Version must be in format X.Y.Z")
+            self.x, self.y, self.z = map(int, parts)
+            self.version = version
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"Invalid version string '{version}': {e}")
+
+class CommitMsg():
+    MSG_INDEX = 2
+    NEW_MAJOR_MSG = "feat!"
+    NEW_MINOR_MSG = "newfeat"
+    STAGED_MSG_FILE = ".git/COMMIT_EDITMSG"
+
+    def __init__(self, tag: str, staged_msg: str = None):
+        self.tag = tag
+        self.all_msg = self._all_msg_from_tag()
+        self.b_new_major = None
+        self.b_new_minor = None
+        self.staged_msg = staged_msg
+        if self.staged_msg is None:
+            self.staged_msg = self.__staged_msg()
+
+    def _all_msg_from_tag(self):
+        # cmd = 'git log v1.0.0..HEAD --pretty=format:"%h [%an] %ad: %s" --date=format:"%Y-%m-%d-%H:%M:%S"'
+        if not self.tag:
+            return []
+        cmd = [
+            'git', 
+            '-c', 'i18n.logOutputEncoding=utf-8', 
+            'log', 
+            f'{self.tag}..HEAD',
+            '--pretty=format:"%h [%an] %s"'
+        ]
+        
+        env = os.environ.copy()
+        env['LANG'] = 'zh_CN.UTF-8'  # 关键环境变量
+        env['PYTHONIOENCODING'] = 'utf-8'
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=os.getcwd(),
+            env=env,  # 传递修改后的环境变量
+            shell=False  # 避免shell的编码干扰
+        )
+        stdout, stderr = proc.communicate()
+        # 尝试多种解码方式
+        for encoding in ('utf-8', 'gbk', 'latin1'):
+            try:
+                lines = stdout.decode(encoding).splitlines()
+                return [line.rstrip() for line in lines if line.rstrip()]
+            except UnicodeDecodeError:
+                continue
+        lines = stdout.decode('utf-8', errors='replace').splitlines  # 保底方案
+        return [line.rstrip() for line in lines if line.rstrip()]
+
+    def is_null(self):
+        return not self.all_msg
+
+    def latest_msg(self):
+        return self.all_msg[0] if self.all_msg else None
+
+    def __read_staged_msg(self):
+        file_path = os.path.join(os.getcwd(), self.STAGED_MSG_FILE)
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+
+    def __check_staged_msg_file_valid(self):
+        file_path = os.path.join(os.getcwd(), self.STAGED_MSG_FILE)
+        if not os.path.exists(file_path):
+            logger.error(f"staged_msg file {file_path} not exist")
+            return False
+        
+        return True
+
+    def __staged_msg(self):
+        if self.staged_msg is None and self.__check_staged_msg_file_valid():
+            self.staged_msg = self.__read_staged_msg()
+        return self.staged_msg
+    
+    def _new_major(self, msg):
+        return (msg and msg.startswith(self.NEW_MAJOR_MSG))
+
+    def _new_minor(self, msg):
+        return (msg and msg.startswith(self.NEW_MINOR_MSG))
+
+    def _invalid_format(self, msg) -> bool:
+        if msg.startswith(f"{self.NEW_MINOR_MSG}!"):
+            logger.error(f"错误：{msg} 不符合规范，多余的符号'!'")
+            return True
+        return False
+    
+    def check_staged_msg_valid(self)->bool:
+        msg = self.__staged_msg()
+        if self.staged_msg is None:
+            logger.error("staged_msg is None, the pre-commit hook type must be 'commit-msg'")
+            return False
+
+        if self._invalid_format(msg):
+            return False
+        if not self.all_msg:
+            return True
+        if self._new_major(msg) and self.has_new_major():
+            logger.error("当前大版本未发布，不可以再次升级大版本！")
+            return False
+        if self._new_minor(msg) and self.has_new_minor():
+            logger.error("当前小版本未发布，不可以再次升级小版本！")
+            return False
+        if self._new_major and self.has_new_minor():
+            logger.warning("当前小版本未发布情况下升级大版本!")
+            logger.warning("如需要发布小版本，使用git reset回退版本，发布小版本后再提交升级大版本。")
+            return True
+        logger.debug(f"_new_minor: {self._new_minor(msg)}")
+        logger.debug(f"has_new_minor: {self.has_new_minor()}")
+        if self._new_minor(msg) and self.has_new_major():
+            logger.debug(f"commit msg: {msg}")
+            logger.error("当前大版本未发布。新升级的大版本包含新的小版本，不需要升级小版本。")
+            return False
+        
+        return True
+
+    @staticmethod
+    def __up_version(func):
+        def wrapper(self, **args):
+            res = func(self, **args)
+            if func == self.has_new_major:
+                self.b_new_major = res
+            elif func == self.has_new_minor:
+                self.b_new_minor = res
+            return res
+        return wrapper
+
+    @__up_version
+    def has_new_major(self):
+        if self.b_new_major is not None:
+            return self.b_new_major
+
+        if self.all_msg:
+            for line in self.all_msg:
+                parts = line.split(' ')
+                msg = ' '.join(parts[self.MSG_INDEX:])
+                if self._new_major(msg):
+                    return True
+
+        return False
+
+    @__up_version
+    def has_new_minor(self):
+        if self.b_new_minor is not None:
+            return self.b_new_minor
+
+        if self.all_msg:
+            for line in self.all_msg:
+                parts = line.split(' ')
+                msg = ' '.join(parts[self.MSG_INDEX:])
+                if self._new_minor(msg):
+                    return True
+
+        return False
+
+@singleton
+class GitVersioning:
+    def __init__(self, version_file, msg=None):
+        self.config = config
+        self.version_file = version_file
+
+        # 基础数据获取
+        self.file_version = self._load_file_version()
+        self.tag_version = self.get_tag()
+
+        logger.debug(f"tag_version: {self.tag_version}")
+        self.commit_msg = CommitMsg(self.tag_version, msg)
+        self.branch = get_branch()
+
+        # 版本对象初始化
+        self.file_xyz = Version(self._tag_formmator(self.file_version))
+        if self.tag_version:
+            self.tag_xyz = Version(self._tag_formmator(self.tag_version))
+        else:
+            self.tag_xyz = Version('0.0.0')
+
+        # 比较结果
+        self.major_upped = self.is_major_upped()
+        self.minor_upped = self.is_minor_upped()
+
+        logger.info("-------------------")
+        logger.info(f"file_version: {self.file_version}")
+        logger.info(f"tag_version: {self.tag_version}")
+        logger.info(f"file_xyz: {self.file_xyz.version}")
+        logger.info(f"tag_xyz: {self.tag_xyz.version}")
+        logger.info(f"current branch: {self.branch}")
+        logger.info(f"latest_msg: {self.commit_msg.latest_msg()}")
+        logger.info(f"staged_msg: {self.commit_msg.staged_msg}")
+        logger.info("-------------------")
+
+    @print_func
+    def _load_file_version(self)->str:
+        with open(self.version_file, 'r', encoding='utf-8') as f:
+            # 读取第一行内容
+            try:
+                return f.readline().split('=')[1].strip().replace('"', '0.0.0')
+            except:
+                logger.error(f"error: Read version from file: {self.version_file} failed!")
+                return "0.0.0"
+
+    @print_func
+    def get_tag(self):
+        filter_callback = None
+        if self.config.get("tag_filter"):
+            filter_callback = _callable_factory(
+                callable_name="tag_filter",
+                regexp_or_ref=self.config.get("tag_filter"),
+                callable_factory=_tag_filter_factory,
+                package_name=None,
+                root=None,
+            )
+        else:
+            logger.warning("tag_filter is None")
+
+        tag = get_tag(filter_callback=filter_callback)
+        return tag      
+
+    @print_func
+    def is_major_upped(self):
+        if self.file_xyz.x > self.tag_xyz.x:
+            return True
+        return False
+    
+    @print_func
+    def is_minor_upped(self):
+        if self.file_xyz.y > self.tag_xyz.y:
+            return True
+        return False
+
+    @print_func
+    def _tag_formmator(self, tag: str):
+        logger.debug(f"tag: {tag}")
+        if self.config.get("tag_formatter"):
+            tag_format_callback = _callable_factory(
+                callable_name="tag_formatter",
+                regexp_or_ref=self.config.get("tag_formatter"),
+                callable_factory=_tag_formatter_factory,
+                package_name=None,
+                root=None,
+            )
+
+            tag = tag_format_callback(tag)
+        else:
+            logger.warning(f"tag_formatter is None, tag: {tag}")
+        return tag
+
+    def _is_new_major(self):
+        return self.commit_msg.has_new_major()
+
+    def _is_new_minor(self):
+        return self.commit_msg.has_new_minor()
+    
+    @print_func
+    def _is_dev(self):
+        return any([
+            not self.commit_msg.is_null(),
+            self.major_upped,
+            self.minor_upped,
+            self.tag_version is None,
+            self._is_new_major(),
+            self._is_new_minor(),
+        ])
+    
+    @print_func
+    def _is_post(self):
+        if any([
+            all([
+                self.file_xyz.x == self.tag_xyz.x,
+                self.file_xyz.y == self.tag_xyz.y,
+                self.file_xyz.z == self.tag_xyz.z,
+            ]),
+        self.branch == self.tag_version,
+        self.commit_msg.is_null(),
+        ]):
+            return True
+        return False
+    
+    @print_func
+    def up_major(self):
+        logger.debug("file_xyz.x: ", self.file_xyz.x)
+        logger.debug("_is_new_major: ", self._is_new_major())
+        logger.debug("major_upped: ", self.major_upped)
+
+        return self.file_xyz.x + (1 if (self._is_new_major() and not self.major_upped) else 0)
+    
+    @print_func
+    def up_minor(self):
+        return self.file_xyz.y + (1 if (self._is_new_minor() and not self.minor_upped) else 0)
+    
+    @print_func
+    def _get_dev_xyz(self):
+        if self._is_new_major():
+            x = self.up_major()
+            y = 0
+            z = 0
+        elif self._is_new_minor():
+            x = self.up_major()
+            y = self.up_minor()
+            z = 0
+        else:
+            x = self.file_xyz.x
+            y = self.file_xyz.y
+            z = self.file_xyz.z
+        return f"{x}.{y}.{z}"
+    
+    @print_func
+    def _dev_version(self):
+        config.update({
+                "dev_template": "{tag}.dev{ccount}",
+                "dirty_template": "{tag}.dev{ccount}+dirty",
+            })
+        version = str(get_version(self.config))
+        logger.info("current the latest tag version: ", version)
+        xyz = Version(self._tag_formmator(version))
+        logger.info("the latest version xyz: ", xyz.version)
+
+        parts = version.split(xyz.version)
+        logger.debug(parts)
+        prefix = parts[0]+"." if len(parts) > 0 and len(parts[0]) > 0 else ""
+        suffix = parts[1] if len(parts) > 1 else ""
+
+        new_xyz = self._get_dev_xyz()
+        new_version = f"{prefix}{new_xyz}{suffix}"
+
+        return new_version
+
+    @print_func
+    def _save_version(self, version):
+        with open(self.version_file, 'w', encoding='utf-8') as f:
+            f.write(f"__version__ = \"{version}\"\n")
+
+    @print_func
+    def get_version(self):
+        if self._is_dev():
+            new_version = self._dev_version()        
+        elif self._is_post():
+            config.update({            
+                "dev_template": "{tag}.post{ccount}",
+                "dirty_template": "{tag}.post{ccount}+dirty",
+            })
+            new_version = str(get_version(self.config))
+        else:
+            new_version = self.tag_version
+        
+        self._save_version(new_version)
+        
+        return new_version
+    
+    @print_func
+    def check_staged_msg_valid(self):
+        return self.commit_msg.check_staged_msg_valid()
+
+
+# 方案1实现
+def setuptools_git_versioning_version():
+    from setuptools_git_versioning import get_version, _read_toml
+    config = _read_toml()
+    return get_version(config)
+
+# 方案2: 代码中获取版本号可以是单独的配置，与pyproject.toml中的配置分离,实现不同的获取方式
+# 因此可以结合使用
+
+
+def get_git_versioning_version(version_file):
+    git_versioning = GitVersioning(version_file)
+    return git_versioning.get_version()
+
+def check_msg_valid(version_file:str) -> bool:
+    git_versioning = GitVersioning(version_file)
+    return git_versioning.check_staged_msg_valid()

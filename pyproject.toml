@@ -1,0 +1,45 @@
+[build-system]
+requires = [
+    "setuptools>=42", 
+    "setuptools-git-versioning>=2.0,<3"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cmdbox"
+dynamic = ["version"]  # 声明动态版本
+description = "命令行工具集"
+authors = [
+    {name = "Your Name", email = "your.name@example.com"}
+]
+readme = "README.md"
+dependencies = [
+    # for cccmd
+    "colorama==0.4.6",
+    # for task_manager
+    "click>=8.0",
+    "psutil>=5.8",
+    "jinja2>=3.1.6"
+]
+requires-python = ">=3.11.2"
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>4.0",
+    "setuptools-git-versioning>=2.0,<3",
+]
+
+[project.scripts]
+cccmd = "command_collector.cccmd:main"  # 全局命令入口点
+ownpygit = "ownpygit.ownpygit:main"
+taskbm = "task_manager.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"task_manager" = ["*.j2"]
+
+[tool.setuptools-git-versioning]
+enabled = true
+version_callback = "freeze_version:get_git_versioning_version"
