@@ -22,7 +22,7 @@ config = {
         "template": "{tag}",
         "dev_template": "{tag}.{ccount}",
         "dirty_template": "{tag}.{ccount}+dirty",
-        "tag_filter": "^git_version_(?P<tag>v?\d+\.\d+\.\d+)$", # 过滤符合条件的tag
+        "tag_filter": "^(?P<tag>v\d+\.\d+\.\d+)$", # 过滤符合条件的tag
         "tag_formatter": "^.*?(?P<tag>\d+\.\d+\.\d+).*" # 对tag进行提取，提取出纯村的版本号：x.y.z
     }
 
@@ -75,8 +75,6 @@ class CommitMsg():
 
     def _all_msg_from_tag(self):
         # cmd = 'git log v1.0.0..HEAD --pretty=format:"%h [%an] %ad: %s" --date=format:"%Y-%m-%d-%H:%M:%S"'
-        if not self.tag:
-            return []
         cmd = [
             'git', 
             '-c', 'i18n.logOutputEncoding=utf-8', 
@@ -84,6 +82,13 @@ class CommitMsg():
             f'{self.tag}..HEAD',
             '--pretty=format:"%h [%an] %s"'
         ]
+        if not self.tag:
+            cmd = [
+                'git', 
+                '-c', 'i18n.logOutputEncoding=utf-8', 
+                'log', 
+                '--pretty=format:"%h [%an] %s"'
+            ]
         
         env = os.environ.copy()
         env['LANG'] = 'zh_CN.UTF-8'  # 关键环境变量
@@ -132,11 +137,13 @@ class CommitMsg():
             self.staged_msg = self.__read_staged_msg()
         return self.staged_msg
     
-    def _new_major(self, msg):
-        return (msg and msg.startswith(self.NEW_MAJOR_MSG))
+    def _new_major(self, msg=None):
+        _msg = msg or self.__staged_msg()
+        return (_msg and _msg.startswith(self.NEW_MAJOR_MSG))
 
-    def _new_minor(self, msg):
-        return (msg and msg.startswith(self.NEW_MINOR_MSG))
+    def _new_minor(self, msg=None):
+        _msg = msg or self.__staged_msg()
+        return (_msg and _msg.startswith(self.NEW_MINOR_MSG))
 
     def _invalid_format(self, msg) -> bool:
         if msg.startswith(f"{self.NEW_MINOR_MSG}!"):
@@ -154,19 +161,19 @@ class CommitMsg():
             return False
         if not self.all_msg:
             return True
-        if self._new_major(msg) and self.has_new_major():
+        if self._new_major() and self.has_new_major():
             logger.error("当前大版本未发布，不可以再次升级大版本！")
             return False
-        if self._new_minor(msg) and self.has_new_minor():
+        if self._new_minor() and self.has_new_minor():
             logger.error("当前小版本未发布，不可以再次升级小版本！")
             return False
-        if self._new_major and self.has_new_minor():
+        if self._new_major() and self.has_new_minor():
             logger.warning("当前小版本未发布情况下升级大版本!")
             logger.warning("如需要发布小版本，使用git reset回退版本，发布小版本后再提交升级大版本。")
             return True
         logger.debug(f"_new_minor: {self._new_minor(msg)}")
         logger.debug(f"has_new_minor: {self.has_new_minor()}")
-        if self._new_minor(msg) and self.has_new_major():
+        if self._new_minor() and self.has_new_major():
             logger.debug(f"commit msg: {msg}")
             logger.error("当前大版本未发布。新升级的大版本包含新的小版本，不需要升级小版本。")
             return False
@@ -215,6 +222,7 @@ class CommitMsg():
 @singleton
 class GitVersioning:
     def __init__(self, version_file, msg=None):
+        self.__version = None
         self.config = config
         self.version_file = version_file
 
@@ -252,7 +260,7 @@ class GitVersioning:
         with open(self.version_file, 'r', encoding='utf-8') as f:
             # 读取第一行内容
             try:
-                return f.readline().split('=')[1].strip().replace('"', '0.0.0')
+                return f.readline().split('=')[1].strip().replace('"', '')
             except:
                 logger.error(f"error: Read version from file: {self.version_file} failed!")
                 return "0.0.0"
@@ -304,10 +312,10 @@ class GitVersioning:
         return tag
 
     def _is_new_major(self):
-        return self.commit_msg.has_new_major()
+        return self.commit_msg.has_new_major() or self.commit_msg._new_major()
 
     def _is_new_minor(self):
-        return self.commit_msg.has_new_minor()
+        return self.commit_msg.has_new_minor()  or self.commit_msg._new_minor()
     
     @print_func
     def _is_dev(self):
@@ -384,14 +392,16 @@ class GitVersioning:
         return new_version
 
     @print_func
-    def _save_version(self, version):
+    def save_version(self, version=None):
+        version = version or self.__version
         with open(self.version_file, 'w', encoding='utf-8') as f:
             f.write(f"__version__ = \"{version}\"\n")
 
     @print_func
     def get_version(self):
+        new_version = None
         if self._is_dev():
-            new_version = self._dev_version()        
+            new_version = self._dev_version()
         elif self._is_post():
             config.update({            
                 "dev_template": "{tag}.post{ccount}",
@@ -401,8 +411,7 @@ class GitVersioning:
         else:
             new_version = self.tag_version
         
-        self._save_version(new_version)
-        
+        self.__version = new_version
         return new_version
     
     @print_func
@@ -418,12 +427,12 @@ def setuptools_git_versioning_version():
 
 # 方案2: 代码中获取版本号可以是单独的配置，与pyproject.toml中的配置分离,实现不同的获取方式
 # 因此可以结合使用
-
-
-def get_git_versioning_version(version_file):
+def setup_git_versioning_version(version_file):
     git_versioning = GitVersioning(version_file)
-    return git_versioning.get_version()
+    version = git_versioning.get_version()
+    git_versioning.save_version()
+    return version
 
-def check_msg_valid(version_file:str) -> bool:
+def check_staged_msg_valid(version_file:str) -> bool:
     git_versioning = GitVersioning(version_file)
     return git_versioning.check_staged_msg_valid()
