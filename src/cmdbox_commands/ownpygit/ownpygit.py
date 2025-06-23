@@ -531,7 +531,10 @@ def main():
         if len(sys.argv) < 3:
             print("请指定要拷贝的文件路径")
             return
-        cp_file(sys.argv[2], sys.argv[3])
+        dst = None
+        if len(sys.argv) > 3:
+            dst = sys.argv[3]
+        cp_file(sys.argv[2], dst)
     elif command == "ocp":
         if len(sys.argv) < 4:
             print("请指定要拷贝的仓库文件路径和目标路径")
