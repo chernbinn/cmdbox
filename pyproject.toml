@@ -31,7 +31,7 @@ dev = [
 
 [project.scripts]
 cmdbox = "cmdbox.cmdbox:main"
-cccmd = "cmdbox_commands.command_collector.cccmd:main"  # 全局命令入口点
+cccmd = "cmdbox_commands.command_collector.cccmd:main"
 ownpygit = "cmdbox_commands.ownpygit.ownpygit:main"
 taskbm = "cmdbox_commands.task_manager.cli:cli"
 
