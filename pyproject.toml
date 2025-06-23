@@ -30,9 +30,10 @@ dev = [
 ]
 
 [project.scripts]
-cccmd = "command_collector.cccmd:main"  # 全局命令入口点
-ownpygit = "ownpygit.ownpygit:main"
-taskbm = "task_manager.cli:cli"
+cmdbox = "cmdbox.cmdbox:main"
+cccmd = "cmdbox_commands.command_collector.cccmd:main"  # 全局命令入口点
+ownpygit = "cmdbox_commands.ownpygit.ownpygit:main"
+taskbm = "cmdbox_commands.task_manager.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

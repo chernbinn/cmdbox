@@ -1,11 +1,13 @@
 import click
-from cmdbox._version import __version__
-from task_manager.manager import TaskManager
+from cmdbox_commands.task_manager.manager import TaskManager
 
-@click.group()
-def cli():
+@click.group(invoke_without_command=True)
+@click.option('-v', '--version', 'show_version', is_flag=True, help='显示版本号')
+def cli(show_version):
     """任务管理命令行工具"""
-    pass
+    if show_version:
+        from cmdbox.cmdbox import _version
+        _version()
 
 @cli.command()
 @click.argument('command')

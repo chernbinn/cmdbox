@@ -1,7 +1,7 @@
 import argparse
 import os
 from pathlib import Path
-from command_collector.CommandCollector import CommandCollector
+from cmdbox_commands.command_collector.CommandCollector import CommandCollector
 
 class CustomHelpFormatter(argparse.HelpFormatter):
     def __init__(self, prog, indent_increment=2, max_help_position=24, width=None):
@@ -46,6 +46,12 @@ def setup_main_parser():
         '-s', '--storage',
         action='store_true',
         help='显示当前 STORAGE_DIR 配置路径'
+    )
+    # 查看版本号   
+    parser.add_argument(
+        '-v', '--version',
+        action='store_true',
+        help='显示cmdbox版本号'
     )
     # 自定义帮助信息
     parser.epilog = "使用 'cccmd COMMAND --help|-h' 查看具体命令帮助"
@@ -129,6 +135,16 @@ def main():
 
     if args.storage:
         print(f"当前 STORAGE_DIR 配置路径: {storage_dir}")
+        return
+    
+    if args.version:
+        try:
+            from cmdbox.cmdbox import _version
+            _version()
+        except:
+            import traceback
+            traceback.print_exc()
+            print("cmdbox version 0.0.0")
         return
 
     if not args.action:

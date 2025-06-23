@@ -499,8 +499,8 @@ def main():
         create_repo(sys.argv[2], alias)
     elif command == "--version":
         try:
-            from cmdbox._version import __version__
-            print(f"cmdbox version {__version__}")
+            from cmdbox.cmdbox import _version
+            _version()
         except:
             print("cmdbox version 0.0.0")
     elif command == "ls":
