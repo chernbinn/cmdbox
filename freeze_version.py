@@ -12,15 +12,16 @@ logger = logger_config.get_print_logger(__name__, logging.DEBUG)
 
 _version_file = Path(__file__).parent / "src" / "cmdbox" / "_version.py"
 
-def get_git_versioning_version():
-    if not check_staged_msg_valid(_version_file):
-        return 1
-    version = setup_git_versioning_version(_version_file)
-    logger.info(f"get_git_versioning_version: {version}")
-    return 0
+def get_git_versioning_version():    
+    return setup_git_versioning_version(_version_file)
+    
 
 def main():
-    return get_git_versioning_version()
+    if not check_staged_msg_valid(_version_file):
+        return 1
+    version = get_git_versioning_version()
+    logger.info(f"new_version: {version}")
+    return 0
 
 if __name__ == '__main__':
     logger.debug(f"{__file__}:{__name__}")
