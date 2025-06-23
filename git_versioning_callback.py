@@ -320,10 +320,10 @@ class GitVersioning:
     @print_func
     def _is_dev(self):
         return any([
-            not self.commit_msg.is_null(),
-            self.major_upped,
-            self.minor_upped,
             self.tag_version is None,
+            not self.commit_msg.is_null() and self.tag_version is None,
+            self.major_upped,
+            self.minor_upped,            
             self._is_new_major(),
             self._is_new_minor(),
         ])
