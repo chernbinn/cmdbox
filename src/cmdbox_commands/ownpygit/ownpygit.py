@@ -183,8 +183,12 @@ def ls_repo()->None:
     repo_dir = _get_working_dir()
     try:
         print(f"[ownpygit] 仓库内容: {repo_dir}")
-        for item in os.listdir(repo_dir):
-            print(f"  - {item}")
+        repo_path = Path(repo_dir)
+        for item in repo_path.iterdir():
+            if item.is_dir():
+                print(f"  d {item.name}/")
+            elif item.is_file():
+                print(f"  - {item.name}")
     except Exception as e:
         print(f"[错误] 列出仓库内容失败: {e}")
 
