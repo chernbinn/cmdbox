@@ -15,7 +15,6 @@ _version_file = Path(__file__).parent / "src" / "cmdbox" / "_version.py"
 def get_git_versioning_version():    
     return setup_git_versioning_version(_version_file)
     
-
 def main():
     if not check_staged_msg_valid(_version_file):
         return 1
