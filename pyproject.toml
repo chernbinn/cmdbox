@@ -37,9 +37,10 @@ taskbm = "cmdbox_commands.task_manager.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["cmdbox*", "cmdbox_commands*"]
 
 [tool.setuptools.package-data]
-"task_manager" = ["*.j2"]
+"cmdbox_commands.task_manager" = ["*.j2"]
 
 [tool.setuptools-git-versioning]
 enabled = true
