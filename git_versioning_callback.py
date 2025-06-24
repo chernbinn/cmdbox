@@ -346,7 +346,7 @@ class GitVersioning:
         """
         if any([
             self.branch == self.tag_version,
-            self.commit_msg.is_null() and self.tag_version is not None,
+            self.tag_version is not None and not (self._is_new_major() or self._is_new_minor()),
         ]):
             return True
         return False
