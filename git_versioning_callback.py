@@ -18,7 +18,7 @@ from logger_config import (
 
 config = {
         "enabled": True,
-        "starting_version": "0.0.0",
+        "starting_version": "0.1.0",
         "template": "{tag}",
         "dev_template": "{tag}.{ccount}",
         "dirty_template": "{tag}.{ccount}+dirty",
@@ -64,14 +64,14 @@ class CommitMsg():
     NEW_MINOR_MSG = "newfeat"
     STAGED_MSG_FILE = ".git/COMMIT_EDITMSG"
 
-    def __init__(self, tag: str, staged_msg: str = None):
+    def __init__(self, tag: str):
         self.tag = tag
+
+        self.staged_msg = None
         self.all_msg = self._all_msg_from_tag()
+
         self.b_new_major = None
         self.b_new_minor = None
-        self.staged_msg = staged_msg
-        if self.staged_msg is None:
-            self.staged_msg = self.__staged_msg()
 
     def _all_msg_from_tag(self):
         # cmd = 'git log v1.0.0..HEAD --pretty=format:"%h [%an] %ad: %s" --date=format:"%Y-%m-%d-%H:%M:%S"'
@@ -129,7 +129,6 @@ class CommitMsg():
         if not os.path.exists(file_path):
             logger.error(f"staged_msg file {file_path} not exist")
             return False
-        
         return True
 
     def __staged_msg(self):
@@ -138,26 +137,27 @@ class CommitMsg():
         return self.staged_msg
     
     def _new_major(self, msg=None):
-        _msg = msg or self.__staged_msg()
+        _msg = msg or self.staged_msg
         return (_msg and _msg.startswith(self.NEW_MAJOR_MSG))
 
     def _new_minor(self, msg=None):
-        _msg = msg or self.__staged_msg()
+        _msg = msg or self.staged_msg
         return (_msg and _msg.startswith(self.NEW_MINOR_MSG))
 
-    def _invalid_format(self, msg) -> bool:
-        if msg.startswith(f"{self.NEW_MINOR_MSG}!"):
-            logger.error(f"错误：{msg} 不符合规范，多余的符号'!'")
-            return True
-        return False
+    def _valid_format(self) -> bool:
+        if self.staged_msg.startswith(f"{self.NEW_MINOR_MSG}!"):
+            logger.error(f"错误：'{self.staged_msg}' 不符合规范，多余的符号'!'")
+            return False
+        return True
     
-    def check_staged_msg_valid(self)->bool:
-        msg = self.__staged_msg()
+    def check_staged_msg_valid(self, staged_msg: str = None) -> bool:
+        msg = staged_msg or self.__staged_msg()
+        self.staged_msg = msg
         if self.staged_msg is None:
             logger.error("staged_msg is None, the pre-commit hook type must be 'commit-msg'")
             return False
 
-        if self._invalid_format(msg):
+        if not self._valid_format():
             return False
         if not self.all_msg:
             return True
@@ -221,9 +221,9 @@ class CommitMsg():
 
 @singleton
 class GitVersioning:
-    def __init__(self, version_file, msg=None):
+    def __init__(self, version_file):
         self.__version = None
-        self.config = config
+        self.config = config.copy()
         self.version_file = version_file
 
         # 基础数据获取
@@ -231,28 +231,29 @@ class GitVersioning:
         self.tag_version = self.get_tag()
 
         logger.debug(f"tag_version: {self.tag_version}")
-        self.commit_msg = CommitMsg(self.tag_version, msg)
+        self.commit_msg = CommitMsg(self.tag_version)
         self.branch = get_branch()
 
         # 版本对象初始化
-        self.file_xyz = Version(self._tag_formmator(self.file_version))
+        #self.file_xyz = Version(self._tag_formmator(self.file_version))
         if self.tag_version:
             self.tag_xyz = Version(self._tag_formmator(self.tag_version))
         else:
-            self.tag_xyz = Version('0.0.0')
+            self.tag_xyz = Version(self.config.get("starting_version", '0.1.0'))
 
         # 比较结果
-        self.major_upped = self.is_major_upped()
-        self.minor_upped = self.is_minor_upped()
+        #self.major_upped = self.is_major_upped()
+        #self.minor_upped = self.is_minor_upped()
 
         logger.info("-------------------")
         logger.info(f"file_version: {self.file_version}")
         logger.info(f"tag_version: {self.tag_version}")
-        logger.info(f"file_xyz: {self.file_xyz.version}")
+        #logger.info(f"file_xyz: {self.file_xyz.version}")
         logger.info(f"tag_xyz: {self.tag_xyz.version}")
         logger.info(f"current branch: {self.branch}")
         logger.info(f"latest_msg: {self.commit_msg.latest_msg()}")
-        logger.info(f"staged_msg: {self.commit_msg.staged_msg}")
+        #logger.info(f"major_upped: {self.major_upped()}")
+        #logger.info(f"minor_upped: {self.minor_upped()}")
         logger.info("-------------------")
 
     @print_func
@@ -263,7 +264,7 @@ class GitVersioning:
                 return f.readline().split('=')[1].strip().replace('"', '')
             except:
                 logger.error(f"error: Read version from file: {self.version_file} failed!")
-                return "0.0.0"
+                return self.config.get('starting_version', '0.1.0')
 
     @print_func
     def get_tag(self):
@@ -312,47 +313,61 @@ class GitVersioning:
         return tag
 
     def _is_new_major(self):
-        return self.commit_msg.has_new_major() or self.commit_msg._new_major()
+        return self.commit_msg._new_major() or self.commit_msg.has_new_major()
 
     def _is_new_minor(self):
-        return self.commit_msg.has_new_minor()  or self.commit_msg._new_minor()
+        return self.commit_msg._new_minor() or self.commit_msg.has_new_minor()
     
     @print_func
     def _is_dev(self):
+        logger.debug("self.tag_version: ", self.tag_version)
+        #logger.debug("self.commit_msg.is_null(): ", self.commit_msg.is_null())
+        #logger.debug("self.major_upped: ", self.major_upped)
+        #logger.debug("self.minor_upped: ", self.minor_upped)
+        logger.debug("_is_new_major(): ", self._is_new_major())
+        logger.debug("_is_new_minor(): ", self._is_new_minor())
+
         return any([
             self.tag_version is None,
-            not self.commit_msg.is_null() and self.tag_version is None,
-            self.major_upped,
-            self.minor_upped,            
+            #self.major_upped,
+            #self.minor_upped,            
             self._is_new_major(),
             self._is_new_minor(),
         ])
     
     @print_func
     def _is_post(self):
+        """
+        all([
+            self.file_xyz.x == self.tag_xyz.x,
+            self.file_xyz.y == self.tag_xyz.y,
+            self.file_xyz.z == self.tag_xyz.z,
+        ]),
+        """
         if any([
-            all([
-                self.file_xyz.x == self.tag_xyz.x,
-                self.file_xyz.y == self.tag_xyz.y,
-                self.file_xyz.z == self.tag_xyz.z,
-            ]),
-        self.branch == self.tag_version,
-        self.commit_msg.is_null(),
+            self.branch == self.tag_version,
+            self.commit_msg.is_null() and self.tag_version is not None,
         ]):
             return True
         return False
     
     @print_func
     def up_major(self):
-        logger.debug("file_xyz.x: ", self.file_xyz.x)
+        #logger.debug("file_xyz.x: ", self.file_xyz.x)
         logger.debug("_is_new_major: ", self._is_new_major())
-        logger.debug("major_upped: ", self.major_upped)
+        #logger.debug("major_upped: ", self.major_upped)
 
-        return self.file_xyz.x + (1 if (self._is_new_major() and not self.major_upped) else 0)
+        #return self.file_xyz.x + (1 if (self._is_new_major() and not self.major_upped) else 0)
+        return self.tag_xyz.x + (1 if self._is_new_major() else 0)
     
     @print_func
     def up_minor(self):
-        return self.file_xyz.y + (1 if (self._is_new_minor() and not self.minor_upped) else 0)
+        #logger.debug("file_xyz.y: ", self.file_xyz.y)
+        logger.debug("_is_new_minor: ", self._is_new_minor())
+        #logger.debug("minor_upped: ", self.minor_upped)
+
+        #return self.file_xyz.y + (1 if (self._is_new_minor() and not self.minor_upped) else 0)
+        return self.tag_xyz.y + (1 if self._is_new_minor() else 0)
     
     @print_func
     def _get_dev_xyz(self):
@@ -360,24 +375,20 @@ class GitVersioning:
             x = self.up_major()
             y = 0
             z = 0
-        elif self._is_new_minor():
+        else: # self._is_new_minor()
             x = self.up_major()
             y = self.up_minor()
             z = 0
-        else:
-            x = self.file_xyz.x
-            y = self.file_xyz.y
-            z = self.file_xyz.z
         return f"{x}.{y}.{z}"
     
     @print_func
     def _dev_version(self):
-        config.update({
+        self.config.update({
                 "dev_template": "{tag}.dev{ccount}",
                 "dirty_template": "{tag}.dev{ccount}+dirty",
             })
         version = str(get_version(self.config))
-        logger.info("current the latest tag version: ", version)
+        logger.info("the latest original version: ", version)
         xyz = Version(self._tag_formmator(version))
         logger.info("the latest version xyz: ", xyz.version)
 
@@ -392,6 +403,15 @@ class GitVersioning:
         return new_version
 
     @print_func
+    def _post_version(self):
+        self.config.update({
+            "dev_template": "{tag}.post{ccount}",
+            "dirty_template": "{tag}.post{ccount}+dirty",
+        })
+        new_version = str(get_version(self.config))
+        return new_version
+
+    @print_func
     def save_version(self, version=None):
         version = version or self.__version
         with open(self.version_file, 'w', encoding='utf-8') as f:
@@ -399,25 +419,22 @@ class GitVersioning:
 
     @print_func
     def get_version(self):
+        logger.info(f"staged_msg: {self.commit_msg.staged_msg}")
+
         new_version = None
-        if self._is_dev():
+        if self._is_post():
+            new_version = self._post_version()
+        elif self._is_dev():
             new_version = self._dev_version()
-        elif self._is_post():
-            config.update({            
-                "dev_template": "{tag}.post{ccount}",
-                "dirty_template": "{tag}.post{ccount}+dirty",
-            })
-            new_version = str(get_version(self.config))
         else:
-            new_version = self.tag_version
+            new_version = self._post_version()
         
         self.__version = new_version
         return new_version
     
     @print_func
-    def check_staged_msg_valid(self):
-        return self.commit_msg.check_staged_msg_valid()
-
+    def check_staged_msg_valid(self, staged_msg=None):
+        return self.commit_msg.check_staged_msg_valid(staged_msg)
 
 # 方案1实现
 def setuptools_git_versioning_version():
@@ -433,6 +450,6 @@ def setup_git_versioning_version(version_file):
     git_versioning.save_version()
     return version
 
-def check_staged_msg_valid(version_file:str) -> bool:
+def check_staged_msg_valid(version_file:str, staged_msg: str=None) -> bool:
     git_versioning = GitVersioning(version_file)
-    return git_versioning.check_staged_msg_valid()
+    return git_versioning.check_staged_msg_valid(staged_msg)
