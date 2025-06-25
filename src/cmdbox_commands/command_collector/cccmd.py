@@ -119,6 +119,7 @@ def setup_main_parser():
         usage="cccmd search [-h|--help] keyword"
     )
     search_parser.add_argument("keyword", help="搜索关键词")
+    search_parser.add_argument("-m", "--module", type=str, help="指定模块名称")
     search_parser.add_argument('-h', '--help', action='help', help='显示此帮助信息')
 
     return parser
@@ -169,7 +170,8 @@ def main():
         else:  # 如果没有指定模块
             collector.list_modules()
     elif args.action == "search":
-        results = collector.search_commands(args.keyword)
+        # 添加对模块的支持
+        results = collector.search_commands(args.keyword, args.module)
         for module, commands in results.items():
             print(f"\n模块 [{module}]:")
             for cmd in commands:

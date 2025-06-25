@@ -133,10 +133,16 @@ class CommandCollector:
             )
         return True
 
-    def search_commands(self, keyword: str) -> Dict[str, List[Dict]]:
+    def search_commands(self, keyword: str, _module: str = None) -> Dict[str, List[Dict]]:
         """全局搜索命令"""
         results = {}
-        for module in self._list_modules():
+        target_modules = []
+        if _module != None:
+            target_modules.append(_module)
+        else:
+            target_modules = self._list_modules()
+
+        for module in target_modules:
             commands = [
                 cmd for cmd in self._list_commands(module)
                 if keyword.lower() in cmd["command"].lower() or 
