@@ -31,7 +31,7 @@ class TaskManager:
         with open(self.db_file) as f:
             return json.load(f)
 
-    def _generate_wrapper_script(self, task_id, command, db_file, log_file, name, until_succeed=True, interval=30):
+    def _generate_wrapper_script(self, task_id, command, db_file, log_file, name, until_succeed=True, interval=30, tee_out_error=False):
         template_path = os.path.join(os.path.dirname(__file__), "wrapper_template.py.j2")
         with open(template_path, "r", encoding="utf-8") as f:
             template = Template(f.read())
@@ -43,11 +43,12 @@ class TaskManager:
             log_file=log_file,
             name=name or command,
             until_succeed=until_succeed,
-            interval=interval
+            interval=interval,
+            tee_out_error=tee_out_error
         )
         return rendered
 
-    def submit_task(self, command, name=None, until_succeed=False, interval=30):
+    def submit_task(self, command, name=None, until_succeed=False, interval=30, tee_out_error=False):
         timestamp = int(time.time())
         task_id = f"task_{timestamp}"
         log_file = os.path.join(self.log_dir, f"{task_id}.log")
@@ -55,7 +56,7 @@ class TaskManager:
         # 构造自维持脚本（解决进程生命周期问题）
         wrapper_script = self._generate_wrapper_script(
             task_id, command, self.db_file, log_file, 
-            name or command, until_succeed, interval
+            name or command, until_succeed, interval, tee_out_error
         )
         
         # 启动独立进程（不依赖Python主进程）

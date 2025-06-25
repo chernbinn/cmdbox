@@ -29,12 +29,13 @@ def read_stream(stream, output_file, is_stderr=False):
             break
         output_file.write(line)
         output_file.flush()
-        if is_stderr:
+        if is_stderr and {% if tee_out_error %}True{% else %}False{% endif %}:
             stderr_print(line)
 
 def tee_output(output_file, line, stream):
     output_file.write(line)
     output_file.flush()
+
     if stream == sys.stderr:
         stderr_print(line)
     else:
@@ -87,8 +88,8 @@ try:
 
             exit_code = proc.wait()
             stderr_thread.join()
-            tee_output(f, f"Task(pid:{pid}) exit_code: {exit_code}\n\n", sys.stderr)
             if exit_code == 0 or not {% if until_succeed %}True{% else %}False{% endif %}:
+                tee_output(f, f"Task(pid:{pid}) completed, exit_code: {exit_code}\n\n", sys.stderr)
                 update_status("completed")
                 break
             time.sleep({{interval}})

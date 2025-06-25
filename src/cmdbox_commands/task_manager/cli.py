@@ -11,13 +11,15 @@ def cli(show_version):
 
 @cli.command()
 @click.argument('command')
-@click.option('--name', help='任务名称，未指定默认为命令')
-@click.option('--until-succeed', is_flag=True, help='直到成功才退出')
-@click.option('--interval', type=int, default=30, help='失败后重试间隔（秒）, 默认30秒')
-def submit(command, name, until_succeed, interval):
+@click.option('-n', '--name', help='任务名称，未指定默认为命令')
+@click.option('-s', '--until-succeed', is_flag=True, help='直到成功才退出')
+@click.option('-i', '--interval', type=int, default=30, help='失败后重试间隔（秒）, 默认30秒')
+@click.option('-e', '--tee_error', is_flag=True, help='将错误日志同步输出到终端')
+def submit(command, name, until_succeed, interval, tee_error):
     """提交新任务"""
     manager = TaskManager()
-    task_id, task = manager.submit_task(command, name, until_succeed, interval)
+    task_id, task = manager.submit_task(command, name, until_succeed, interval, tee_error)
+
     click.echo(f"Task submitted! ID: {task_id}")
     show_task(manager, task_id, task)
 
