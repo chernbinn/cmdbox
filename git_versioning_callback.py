@@ -246,7 +246,7 @@ class GitVersioning:
         # 基础数据获取
         self.file_version = self._load_file_version()
         if exit_git == False:
-            logger.warning(f"project dose not use git, version read from file: {self.file_version}")
+            logger.warning(f".git not exist, version read from file: {os.path.relpath(self.version_file)}")
             return
         self.tag_version = self.get_tag()
 

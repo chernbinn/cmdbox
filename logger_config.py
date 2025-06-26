@@ -141,7 +141,7 @@ class PrintLogger:
 
     def warning(self, *args, **kws):
         if self.__should_log(logging.WARNING):
-            __print_log(*args, **kws, level=logging.WARNING)
+            self.__print_log(*args, **kws, level=logging.WARNING)
 
     def error(self, *args, **kws):
         if self.__should_log(logging.ERROR):
