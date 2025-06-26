@@ -1,6 +1,7 @@
 import logging
-import os
+import os, sys
 import subprocess
+from pathlib import Path
 from setuptools_git_versioning import (
     get_version, 
     get_branch, 
@@ -16,7 +17,12 @@ from logger_config import (
     get_print_logger
 )
 
-config = {
+# --------------------------------------
+# project global config
+#_______________________________________
+g_version_file = Path(__file__).parent / "src" / "cmdbox" / "_version.py"
+g_git_path = Path(__file__).parent / ".git"
+g_config = {
         "enabled": True,
         "starting_version": "0.1.0",
         "template": "{tag}",
@@ -25,6 +31,17 @@ config = {
         "tag_filter": "^(?P<tag>v\d+\.\d+\.\d+)$", # 过滤符合条件的tag
         "tag_formatter": "^.*?(?P<tag>\d+\.\d+\.\d+).*" # 对tag进行提取，提取出纯村的版本号：x.y.z
     }
+g_post_config = {
+        "dev_template": "{tag}.post{ccount}",
+        "dirty_template": "{tag}.post{ccount}+dirty",
+    }
+g_dev_config = {
+        "dev_template": "{tag}.dev{ccount}",
+        "dirty_template": "{tag}.dev{ccount}+dirty",
+    }
+# --------------------------------------
+# project global config end
+#_______________________________________
 
 # logger_third_module("setuptools_git_versioning", setuptools_git_versioning.DEBUG)
 logger = get_print_logger(__name__, logging.DEBUG)
@@ -221,13 +238,16 @@ class CommitMsg():
 
 @singleton
 class GitVersioning:
-    def __init__(self, version_file):
+    def __init__(self, version_file, exit_git = True):
         self.__version = None
-        self.config = config.copy()
+        self.config = g_config.copy()
         self.version_file = version_file
 
         # 基础数据获取
         self.file_version = self._load_file_version()
+        if exit_git == False:
+            logger.warning(f"project dose not use git, version read from file: {self.file_version}")
+            return
         self.tag_version = self.get_tag()
 
         logger.debug(f"tag_version: {self.tag_version}")
@@ -383,10 +403,7 @@ class GitVersioning:
     
     @print_func
     def _dev_version(self):
-        self.config.update({
-                "dev_template": "{tag}.dev{ccount}",
-                "dirty_template": "{tag}.dev{ccount}+dirty",
-            })
+        self.config.update(g_dev_config)
         version = str(get_version(self.config))
         logger.info("the latest original version: ", version)
         xyz = Version(self._tag_formmator(version))
@@ -404,10 +421,7 @@ class GitVersioning:
 
     @print_func
     def _post_version(self):
-        self.config.update({
-            "dev_template": "{tag}.post{ccount}",
-            "dirty_template": "{tag}.post{ccount}+dirty",
-        })
+        self.config.update(g_post_config)
         new_version = str(get_version(self.config))
         return new_version
 
@@ -444,12 +458,46 @@ def setuptools_git_versioning_version():
 
 # 方案2: 代码中获取版本号可以是单独的配置，与pyproject.toml中的配置分离,实现不同的获取方式
 # 因此可以结合使用
+def check_staged_msg_valid(version_file:str, staged_msg: str=None) -> bool:
+    git_versioning = GitVersioning(version_file)
+    return git_versioning.check_staged_msg_valid(staged_msg)
+
 def setup_git_versioning_version(version_file):
     git_versioning = GitVersioning(version_file)
     version = git_versioning.get_version()
     git_versioning.save_version()
     return version
 
-def check_staged_msg_valid(version_file:str, staged_msg: str=None) -> bool:
-    git_versioning = GitVersioning(version_file)
-    return git_versioning.check_staged_msg_valid(staged_msg)
+def setup_version_from_file(version_file:str):
+    git_versioning = GitVersioning(version_file, False)
+    return git_versioning.file_version
+
+# -------------------------------------
+# for pre-commit
+def commit_update_version():
+    if check_staged_msg_valid(g_version_file):
+        return setup_git_versioning_version(g_version_file)
+    return None
+
+# for pyproject.toml
+def install_version():
+    git_path = g_git_path
+    if not git_path or not git_path.exists():
+        return setup_version_from_file(g_version_file)
+    return setup_git_versioning_version(g_version_file)
+
+# --------------------------------------
+# for pre-commit entry
+def main():
+    version = commit_update_version()
+    if not version:
+        return 1
+    logger.info(f"new_version: {version}")
+    return 0
+
+if __name__ == '__main__':
+    logger.debug(f"{__file__}:{__name__}")
+    if len(sys.argv) > 1 and sys.argv[1] == 'install':
+        logger.debug(install_version())
+        sys.exit(0)
+    sys.exit(main())
