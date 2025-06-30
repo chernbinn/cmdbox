@@ -13,6 +13,8 @@ authors = [
     {name = "Your Name", email = "your.name@example.com"}
 ]
 readme = "README.md"
+license = "MIT"
+#repository = "https://gitee.com/binnchern/cmdbox"
 dependencies = [
     # for cccmd
     "colorama==0.4.6",
