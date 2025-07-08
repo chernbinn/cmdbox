@@ -76,6 +76,20 @@ def setup_main_parser():
     add_parser.add_argument('-d', '--description', required=True, help='命令描述信息')
     add_parser.add_argument('-h', '--help', action='help', help='显示此帮助信息')
 
+    # modify命令
+    modify_parser = subparsers.add_parser(
+        'modify',
+        help='修改已存在的命令',
+        formatter_class=CustomHelpFormatter,
+        add_help=False,
+        usage="cccmd modify [-h|--help] module --index INDEX [-c COMMAND|-d DESCRIPTION]"
+    )
+    modify_parser.add_argument('module', help='目标模块名称')
+    modify_parser.add_argument('-i', '--index', type=int, required=True, help='命令索引')
+    modify_parser.add_argument('-c', '--command', required=False, help='修改命令内容')
+    modify_parser.add_argument('-d', '--description', required=False, help='修改命令描述信息')
+    modify_parser.add_argument('-h', '--help', action='help', help='显示此帮助信息')
+
     # delete 命令
     delete_parser = subparsers.add_parser(
         'del',
@@ -154,6 +168,10 @@ def main():
 
     if args.action == "add":
         collector.add_command(args.module, args.command, args.description)
+    
+    elif args.action == "modify":
+        collector.modify_command(args.module, args.index, args.command, args.description)
+        collector.list_commands(args.module)
     elif args.action == "del":
         res = collector.delete_command(args.module, args.index)
         if res:

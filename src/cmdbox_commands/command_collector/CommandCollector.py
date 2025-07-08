@@ -49,6 +49,34 @@ class CommandCollector:
         with open(module_path, 'w') as f:
             json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
         print(f"命令已添加到模块 [{module}]")
+    
+    def modify_command(self, module: str, command_index: int = None, command: str = None, description: str = None):
+        """修改指定模块的命令或描述"""
+        module_path = self._get_module_path(module)
+        if not module_path.exists():
+            print(f"模块 [{module}] 不存在")
+            return False
+        data = self._load_module(module_path)
+        
+        if command_index is None:
+            print(f"必须指定命令索引")
+            return False
+        elif command_index < 0 or command_index >= len(data):
+            print(f"命令索引 [{command_index}] 超出范围")
+            return False
+        
+        if command is None and description is None:
+            print(f"必须指定修改后的命令或描述")
+            return False
+        
+        if command is not None:
+            data[command_index]['command'] = command
+        if description is not None:
+            data[command_index]['description'] = description
+        
+        with open(module_path, 'w') as f:
+            json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
+        print(f"命令已更新到模块 [{module}]")
 
     def delete_command(self, module: str, command_index: int = None):
         """删除指定模块的命令或整个模块"""
