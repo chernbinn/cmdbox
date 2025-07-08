@@ -111,6 +111,9 @@ class TaskManager:
         db = self._load_db()
         delete_failed = None
         for task_id, task in list(db["tasks"].items()):
+            if self._is_process_running(task["pid"]):
+                continue
+            
             if any([
                 task["status"] == "killed",
                 task["status"] == "completed"
