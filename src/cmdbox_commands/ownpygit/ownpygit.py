@@ -194,18 +194,24 @@ def ls_repo()->None:
 
 @_judge_repo_path
 def cp_file(file_path, dst_path=None)->bool:
-    """将文件拷贝到当前激活仓库"""
-    src = Path(file_path)
-    if not src.exists():
-        print(f"[错误] 仓库路径不存在: {src}")
-        return False
-
+    """将文件拷贝到当前激活仓库"""    
     cwd = _get_working_dir()
+    src = Path(file_path)    
     dst = None
     if dst_path:
         dst = cwd / Path(dst_path)
     else:
         dst = cwd / src.name
+
+    print(f"源路径：{src}")
+    print(f"目标路径：{dst}")
+    if not src.exists():
+        print(f"[错误] 源路径不存在: {src}")
+        return False
+    if not dst.exists():
+        print(f"[错误] 目标路径不存在: {dst}")
+        return False
+
     try:
         if src.is_file():            
             shutil.copy2(src, dst)
