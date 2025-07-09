@@ -234,6 +234,10 @@ def ocp_file(in_path, out_path):
         return False
 
     out_path = Path(out_path)
+    if not out_path.exists():
+        print(f"[错误] 目标路径不存在: {out_path}")
+        return False
+        
     if out_path.is_dir():
         out_path = out_path / in_path.name
 
