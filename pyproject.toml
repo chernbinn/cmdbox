@@ -21,7 +21,8 @@ dependencies = [
     # for task_manager
     "click>=8.0",
     "psutil>=5.8",
-    "jinja2>=3.1.6"
+    "jinja2>=3.1.6",
+    "numpy>=2.3.1",
 ]
 requires-python = ">=3.11.2"
 
@@ -36,6 +37,9 @@ cmdbox = "cmdbox.cmdbox:main"
 cccmd = "cmdbox_commands.command_collector.cccmd:main"
 ownpygit = "cmdbox_commands.ownpygit.ownpygit:main"
 taskbm = "cmdbox_commands.task_manager.cli:cli"
+
+[project.gui-scripts]
+pycompare = "cmdbox_commands.pycompare.pycompare:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

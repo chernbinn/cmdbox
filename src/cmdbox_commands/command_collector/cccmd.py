@@ -141,7 +141,7 @@ def setup_main_parser():
 def main():
     #import sys
     #print("cccmd.py使用的库路径:", [p for p in sys.path if 'site-packages' in p])
-    storage_dir = os.environ.get("STORAGE_DIR", os.fspath(Path.home() / ".command_collector"))
+    storage_dir = os.environ.get("STORAGE_DIR", os.fspath(Path.home() / ".cmdbox" / "command_collector"))
     # print("---+++ storage_dir:", storage_dir)
     collector = CommandCollector(storage_dir) 
     

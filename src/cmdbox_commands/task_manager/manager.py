@@ -12,8 +12,9 @@ from jinja2 import Template
 
 class TaskManager:
     def __init__(self):
-        self.db_file = os.fspath(Path.home() / ".task_manager" / "taskdb.json")
-        self.log_dir = os.fspath(Path.home() / ".task_manager" / "logs")
+        self.db_file = os.fspath(Path.home() / ".cmdbox"/ "task_manager" / "taskdb.json")
+        self.log_dir = os.fspath(Path.home() / ".cmdbox"/ "task_manager" / "logs")
+
         os.makedirs(self.log_dir, exist_ok=True)
         self._init_db()
         atexit.register(self._cleanup)

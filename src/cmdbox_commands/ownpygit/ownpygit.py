@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 
 # 配置目录和文件路径
-DB_DIR = Path.home() / ".ownpygit" / "db"
+DB_DIR = Path.home() / ".cmdbox" / "ownpygit" / "db"
 CONFIG_FILE = DB_DIR / "ownpygit_repo.cfg"
 HISTORY_FILE = DB_DIR / "ownpygit_history.cfg"
 ALIAS_FILE = DB_DIR / "ownpygit_alias.cfg"
@@ -208,9 +208,8 @@ def cp_file(file_path, dst_path=None)->bool:
     if not src.exists():
         print(f"[错误] 源路径不存在: {src}")
         return False
-    if not dst.exists():
-        print(f"[错误] 目标路径不存在: {dst}")
-        return False
+    if dst.exists():
+        print(f"[警告] 目标路径存在,将覆盖: {dst}")
 
     try:
         if src.is_file():            
