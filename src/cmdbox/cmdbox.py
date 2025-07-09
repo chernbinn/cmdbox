@@ -6,6 +6,7 @@ except:
 
 import click
 from importlib.metadata import entry_points
+"""
 try:
     from pkg_resources import iter_entry_points
 except ImportError:
@@ -20,12 +21,12 @@ def get_scripts_legacy():
         for ep in iter_entry_points("console_scripts") 
         if project_name in ep.module_name.split(".", 1)[0]
     ]
-
-def get_project_scripts():
+"""
+def get_project_scripts(script_tag: str):
     """只获取当前项目注册的命令"""
     project_name = "cmdbox_commands"  # 替换为你的项目名
     scripts = []
-    for entry_point in entry_points().get("console_scripts", []):
+    for entry_point in entry_points().get(f"{script_tag}", []):
         if project_name in entry_point.value.split(".", 1)[0]:
             scripts.append({
                 "name": entry_point.name,
@@ -36,9 +37,14 @@ def get_project_scripts():
 def get_scripts():
     """优先使用 importlib.metadata，回退到其他方法"""
     try:
-        return get_project_scripts()
+        return get_project_scripts("console_scripts")
     except:
-        return get_scripts_legacy()  # 回退到方法3
+        pass
+        #return get_scripts_legacy()
+
+def get_gui_scripts():
+    """获取GUI工具"""
+    return get_project_scripts("gui_scripts")
 
 @click.command()
 @click.version_option(version=__version__, prog_name='cmdbox')
@@ -53,7 +59,13 @@ def cli(show_list):
         for script in scripts:
             click.echo(f"  {script['name']}")
         click.echo()
-        if len(scripts) > 0:
+        click.echo("支持的GUI工具:")
+        gui_scripts = get_gui_scripts()
+        for script in gui_scripts:
+            click.echo(f"  {script['name']}")
+        click.echo()
+
+        if len(scripts) > 0 or len(gui_scripts) > 0:
             click.echo(f"命令使用方式，COMMAND --help查看，例如：{scripts[0]['name']} --help")
 
 def _version():
