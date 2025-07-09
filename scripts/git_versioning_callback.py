@@ -277,13 +277,13 @@ class GitVersioning:
 
     @print_func
     def _load_file_version(self)->str:
-        with open(self.version_file, 'r', encoding='utf-8') as f:
-            # 读取第一行内容
-            try:
+        try:
+            with open(self.version_file, 'r', encoding='utf-8') as f:
+                # 读取第一行内容
                 return f.readline().split('=')[1].strip().replace('"', '')
-            except:
-                logger.error(f"error: Read version from file: {self.version_file} failed!")
-                return self.config.get('starting_version', '0.1.0')
+        except:
+            logger.warning(f"version from version file is not exist! Return default version:{self.config.get('starting_version', '0.1.0')}")
+            return self.config.get('starting_version', '0.1.0')
 
     @print_func
     def get_tag(self):
@@ -471,21 +471,35 @@ def setup_version_from_file(version_file:str):
     git_versioning = GitVersioning(version_file, False)
     return git_versioning.file_version
 
+def ensure_version_file(version_file:str, git_path: Path):
+    if not Path(version_file).exists():
+        version = None
+        if Path(git_path).exists():
+            version = setup_git_versioning_version(version_file)
+        else:
+            version = g_config['starting_version']
+        # 创建文件
+        with open(version_file, 'w', encoding='utf-8') as f:
+            f.write(f"__version__ = \"{version or g_config['starting_version']}\"\n")
+
 # -------------------------------------
 # for pre-commit
 def commit_update_version():
+    ensure_version_file(g_version_file, g_git_path)
     if check_staged_msg_valid(g_version_file):
         return setup_git_versioning_version(g_version_file)
     return None
 
 # for pyproject.toml
 def install_version():
+    ensure_version_file(g_version_file, g_git_path)
     git_path = g_git_path
     if not git_path or not git_path.exists():
         return setup_version_from_file(g_version_file)
     return setup_git_versioning_version(g_version_file)
 
 def version_from_file():
+    ensure_version_file(g_version_file, g_git_path)
     return setup_version_from_file(g_version_file)
 
 # --------------------------------------
