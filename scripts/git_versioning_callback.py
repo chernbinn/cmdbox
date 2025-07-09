@@ -8,20 +8,19 @@ from setuptools_git_versioning import (
     get_tag, 
     _tag_filter_factory,
     _tag_formatter_factory,
-    _callable_factory,
-    _exec
+    _callable_factory
 )
-from logger_config import (
-    logger_third_module,
-    get_logging_logger,
-    get_print_logger
-)
+try:
+    from .logger_config import get_print_logger
+except:
+    print("python -m scripts.git_versioning_callback [install|file]")
+    exit(1)
 
 # --------------------------------------
 # project global config
 #_______________________________________
-g_version_file = Path(__file__).parent / "src" / "cmdbox" / "_version.py"
-g_git_path = Path(__file__).parent / ".git"
+g_version_file = Path(__file__).parent.parent / "src" / "cmdbox" / "_version.py"
+g_git_path = Path(__file__).parent.parent / ".git"
 g_config = {
         "enabled": True,
         "starting_version": "0.1.0",
@@ -29,7 +28,7 @@ g_config = {
         "dev_template": "{tag}.{ccount}",
         "dirty_template": "{tag}.{ccount}+dirty",
         "tag_filter": "^(?P<tag>v\d+\.\d+\.\d+)$", # 过滤符合条件的tag
-        "tag_formatter": "^.*?(?P<tag>\d+\.\d+\.\d+).*" # 对tag进行提取，提取出纯村的版本号：x.y.z
+        "tag_formatter": "^.*?(?P<tag>\d+\.\d+\.\d+).*" # 对tag进行提取，提取出纯粹的版本号：x.y.z
     }
 g_post_config = {
         "dev_template": "{tag}.post{ccount}",
@@ -44,7 +43,7 @@ g_dev_config = {
 #_______________________________________
 
 # logger_third_module("setuptools_git_versioning", setuptools_git_versioning.DEBUG)
-logger = get_print_logger(__name__, logging.DEBUG)
+logger = get_print_logger(__name__, logging.INFO)
 #logger = get_logging_logger(__name__, logging.DEBUG)
 
 def print_func(func):
@@ -486,18 +485,24 @@ def install_version():
         return setup_version_from_file(g_version_file)
     return setup_git_versioning_version(g_version_file)
 
+def version_from_file():
+    return setup_version_from_file(g_version_file)
+
 # --------------------------------------
 # for pre-commit entry
 def main():
     version = commit_update_version()
     if not version:
         return 1
-    logger.info(f"new_version: {version}")
+    logger.info(f"version: {version}")
     return 0
 
 if __name__ == '__main__':
     logger.debug(f"{__file__}:{__name__}")
     if len(sys.argv) > 1 and sys.argv[1] == 'install':
-        logger.debug(install_version())
+        logger.info(f"version: {install_version()}")
+        sys.exit(0)
+    elif len(sys.argv) > 1 and sys.argv[1] == 'file':
+        logger.info(f"version: {version_from_file()}")
         sys.exit(0)
     sys.exit(main())

@@ -50,4 +50,4 @@ include = ["cmdbox*", "cmdbox_commands*"]
 
 [tool.setuptools-git-versioning]
 enabled = true
-version_callback = "git_versioning_callback:install_version"
+version_callback = "scripts.git_versioning_callback:install_version"
