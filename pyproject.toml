@@ -23,6 +23,8 @@ dependencies = [
     "psutil>=5.8",
     "jinja2>=3.1.6",
     "numpy>=2.3.1",
+    "pydantic>=2.11.7",
+    "toml>=0.10.2",
 ]
 requires-python = ">=3.11.2"
 
@@ -37,13 +39,17 @@ cmdbox = "cmdbox.cmdbox:main"
 cccmd = "cmdbox_commands.command_collector.cccmd:main"
 ownpygit = "cmdbox_commands.ownpygit.ownpygit:main"
 taskbm = "cmdbox_commands.task_manager.cli:cli"
+cmdr = "cmdbox_commands.cmd_register.cli:main"
 
 [project.gui-scripts]
 pycompare = "cmdbox_commands.pycompare.pycompare:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["cmdbox*", "cmdbox_commands*"]
+include = [
+    "cmdbox*", 
+    "cmdbox_commands*"
+]
 
 [tool.setuptools.package-data]
 "cmdbox_commands.task_manager" = ["*.j2"]
