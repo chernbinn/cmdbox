@@ -6,8 +6,8 @@ import subprocess
 import threading
 from pathlib import Path
 
-def stderr_print(line):    
-    print(line, file=sys.stderr)
+def stderr_print(line):
+    print(line, file=sys.stdout, flush=True)
 
 def read_stream(stream, output_file, is_stderr=False):
     for line in iter(stream.readline, ''):
@@ -22,25 +22,24 @@ def read_stream(stream, output_file, is_stderr=False):
 @click.command(context_settings={{"ignore_unknown_options": True}}, help="{description}")
 @click.pass_context
 @click.option("-v", 'verbose', count=True, show_default=True, help="Enable debug mode, more log use -vv, max count 2")
-@click.option("-f ", 'log_file', type=click.Path(), help="Log file")
+@click.option("--log-file", 'log_file', type=click.Path(), help="Log file")
 @click.option('--help', 'help', is_flag=True, help="Show help message")
 @click.argument("args", nargs=-1)
 def main(ctx, args, verbose, log_file, help):
     command = r"{command}"
     if verbose > 0:
-        click.echo(f"command: {{command}}")
-        click.echo(f"verbose: {{verbose}}")
-        click.echo(f"log_file: {{log_file}}")
+        #stderr_print(f"command: {{command}}")
+        stderr_print(f"verbose: {{verbose}}")
+        stderr_print(f"log_file: {{log_file}}")
     _args = [item for item in args]
     if help:
         #click.echo(f"help: {{help}}")
         _args.extend(['--help'])
     command = " ".join([command] + _args)
     if verbose > 0:
-        click.echo(f"Excute command: {{command}}")
-    if help:
-        click.echo(ctx.get_help())
-
+        stderr_print(f"Excute command: {{command}}")
+        if help: stderr_print("")
+    
     try:
         proc = subprocess.Popen(
                 [r"{command}"] + _args,
@@ -77,10 +76,12 @@ def main(ctx, args, verbose, log_file, help):
             stdout_thread.join()
         if f:
             f.close()
-        click.echo("\nCommand success")
+        if help:
+            stderr_print(ctx.get_help())
+        stderr_print("\nCommand success")
     except Exception as e:
-        click.echo(f"Excute command '{{command}}' failed: {{e}}", file=sys.stderr)
-        click.echo(ctx.get_help())
+        stderr_print(f"Excute command '{{command}}' failed: {{e}}")
+        stderr_print(ctx.get_help())
         sys.exit(1)
 
 if __name__ == "__main__":

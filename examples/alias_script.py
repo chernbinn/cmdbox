@@ -31,7 +31,7 @@ def read_stream(stream, output_file, is_stderr=False):
 @click.command(context_settings={"ignore_unknown_options": True}, help="Alias command")
 @click.pass_context
 @click.option("-v", 'verbose', count=True, show_default=True, help="Enable debug mode, more log use -vv, max count 2")
-@click.option("-f ", 'log_file', type=click.Path(), help="Log file")
+@click.option("--log-file ", 'log_file', type=click.Path(), help="Log file")
 @click.option('--help', 'help', is_flag=True, help="Show help message")
 @click.argument("args", nargs=-1)
 def main(ctx, args, verbose, log_file, help):

@@ -2,6 +2,7 @@ import os
 import click
 from pathlib import Path
 from cmdbox_commands.cmd_register.cmd_register import CmdResiter
+from cmdbox_commands.cmd_register.config import is_debug
 
 cmd_register = CmdResiter(Path.home() / '.cmdbox' / 'cmd_register' / 'cmd_register.toml')
 
@@ -37,7 +38,7 @@ def main(ctx, show_version, debug):
 @main.command("add")
 @click.argument('alias')
 @click.argument('command')
-@click.option('-g', '--gui', 'is_gui', is_flag=True, help='有图形界面工具')
+#@click.option('-g', '--gui', 'is_gui', is_flag=True, help='有图形界面工具')
 @click.option('-d', '--description', 'description', default='', help='命令描述')
 @click.option('-p', '--project', 'project_name', default='default', help='分组名称')
 def registe(alias: str, command: str, is_gui: bool = False, description: str = '', project_name = 'default'):
@@ -50,7 +51,10 @@ def registe(alias: str, command: str, is_gui: bool = False, description: str = '
     try:
         cmd_register.registe(alias, command, is_gui, description, project_name)
     except ValueError as e:
-        click.echo(e)
+        if is_debug():
+            import traceback
+            traceback.print_exc()
+        #click.echo(e)
         return
 
 @main.command()
@@ -65,10 +69,12 @@ def remove(alias: str = None, project_name:str = None):
         return
     try:
         cmd_register.remove(alias, project_name)
+        click.echo(f"删除自定义命令成功: {alias}")
     except ValueError as e:
-        click.echo(e)
-    
-    cmd_register.remove(alias, project_name)
+        click.echo(f"删除自定义命令失败: {e}")
+        if is_debug():
+            import traceback
+            traceback.print_exc()
 
 @main.command()
 @click.option('-p', '--project', 'project_name', default=None, help='分组名称')

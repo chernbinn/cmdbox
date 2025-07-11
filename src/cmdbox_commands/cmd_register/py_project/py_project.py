@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import click
+from typing import Union, Optional
 from dataclasses import dataclass
 from pydantic import BaseModel, field_validator
 from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, PyprojectToml
@@ -125,6 +126,35 @@ class PyProject:
             raise ValueError(f"install dev '{self.project_path}' failed")
         else:
             click.echo(f"install dev '{self.project_path}' success")
+
+    @staticmethod
+    def is_installed(alias: str, project_name: str = None) -> Union[bool, Optional[str]]:
+        """ 检查自定义命令是否被安装 """
+        # pipx runpip cmdbox show -f cmdbox，当project不为None时
+        # pipx list,当project为None时
+        command = None
+        if project_name:
+            command = f'pipx runpip {project_name} show -f {project_name}'
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+            if result.returncode != 0:
+                return False, None
+            if alias:
+                if result.stdout and alias in result.stdout:
+                    return True, project_name                
+            else:
+                return True, project_name
+            return False, None
+        else:
+            command = f'pipx list --short'
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+            result.check_returncode()
+            for line in result.stdout.splitlines():
+                project = line.split()[0]
+                is_installed, project_name = PyProject.is_installed(alias, project)
+                if is_installed:
+                    return True, project_name
+            return False, None
+        
     
     def _file_content(self, command: Command):
         from cmdbox_commands.cmd_register.py_project.generator import generator_src
