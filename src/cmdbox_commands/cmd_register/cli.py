@@ -49,7 +49,10 @@ def registe(alias: str, command: str, is_gui: bool = False, description: str = '
     command  实际命令
     """
     try:
-        cmd_register.registe(alias, command, is_gui, description, project_name)
+        if cmd_register.registe(alias, command, is_gui, description, project_name):
+            click.echo(f"register command '{alias}' success")
+        else:
+            click.echo(f"register command '{alias}' failed")
     except ValueError as e:
         if is_debug():
             import traceback

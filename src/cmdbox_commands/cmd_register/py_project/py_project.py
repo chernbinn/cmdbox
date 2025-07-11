@@ -5,8 +5,7 @@ from typing import Union, Optional
 from dataclasses import dataclass
 from pydantic import BaseModel, field_validator
 from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, PyprojectToml
-from .utils import check_command_exist
-
+from .utils import check_command_exist, child_run
 
 #@dataclass
 class Command(BaseModel):
@@ -72,12 +71,19 @@ class PyProject:
                     text=True)
         # 安装新版本
         click.echo(f"install new tools:'{self.project_name}'")
+        """
         result = subprocess.run(f'pipx install -f {self.project_path}', 
                     shell=True, 
                     encoding='utf-8',
                     capture_output=True, 
                     text=True)
         if result.returncode != 0:
+            raise ValueError(f"install '{self.project_path}' failed")
+        else:
+            click.echo(f"install '{self.project_path}' success")
+        """
+        result = child_run(f'pipx install -f {self.project_path}', 2)
+        if result.return_code != 0:
             raise ValueError(f"install '{self.project_path}' failed")
         else:
             click.echo(f"install '{self.project_path}' success")

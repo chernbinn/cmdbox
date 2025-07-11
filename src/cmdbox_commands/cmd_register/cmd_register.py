@@ -55,10 +55,12 @@ class CmdResiter:
                 traceback.print_exc()
             return False
 
-    def registe(self, alias: str, command: str, is_gui: bool = False, description: str = '', project_name = 'default'):
-
+    def registe(self, alias: str, command: str, is_gui: bool = False, 
+                description: str = '', project_name = 'default')->bool:
         if alias in self.cmd_register:
-            raise ValueError(f'alias {alias} already exist')
+            #raise ValueError(f'alias {alias} already exist')
+            click.echo(f'alias {alias} already exist')
+            return False
         self.cmd_register[alias] = {
             'project_name': project_name,
             'command': command,
@@ -66,8 +68,9 @@ class CmdResiter:
             'description': description
         }
         if self._update_project(project_name):
-            self._save()
-            click.echo(f"register command '{alias}' success")
+            self._save()            
+            return True
+        return False
 
     def _remove_proejct(self, project_name: str):
         if not self._check_exist(project_name):

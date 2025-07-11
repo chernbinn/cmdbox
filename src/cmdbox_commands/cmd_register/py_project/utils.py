@@ -1,5 +1,10 @@
+import sys,os
 import click
 import subprocess
+import threading
+from pathlib import Path
+from typing import Literal
+from pydantic import BaseModel
 
 def check_command_exist(command: str) -> bool:
     """检查命令是否存在"""
@@ -15,3 +20,79 @@ def check_command_exist(command: str) -> bool:
         return True
     click.echo(f"'{command}' not exist")
     return False
+
+def stderr_print(line):
+    print(line, file=sys.stdout, flush=True)
+
+def tee_stream(stream, output_file, is_stderr=False, buffer=None, verbose:Literal[0,1,2]=0):
+    for line in iter(stream.readline, ''):
+        if not line:
+            break
+        if buffer and line.strip():
+            buffer.append(line.strip())
+        if output_file:
+            output_file.write(line)
+            output_file.flush()
+        if (is_stderr and verbose > 0) or verbose > 1:
+            stderr_print(line)
+
+class ChildResult(BaseModel):
+    return_code: int
+    stdout: str
+    stderr: str
+
+def child_run(args, verbose:Literal[0,1,2]=0, log_file:Path = None):
+    stderr_print(f"Excute command: {args}")
+    
+    try:
+        proc = subprocess.Popen(
+                args,
+                shell=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=1,
+                universal_newlines=True,
+                creationflags=0x08000000 if os.name == 'nt' else 0,
+                encoding='utf-8'
+            )
+        stderr_thread = None
+        stdout_thread = None
+
+        f = None
+        if log_file:
+            Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+            f = open(log_file, "w", encoding="utf-8")
+
+        result_stdout = []
+        result_stderr = []
+        stderr_thread = threading.Thread(
+            target=tee_stream, 
+            args=(proc.stderr, f, True, result_stderr, verbose), daemon=True)
+        stderr_thread.start()
+
+        stdout_thread = threading.Thread(
+                target=tee_stream, 
+                args=(proc.stdout, f, False, result_stdout, verbose), daemon=True)
+        stdout_thread.start()
+        exit_code = proc.wait()
+        if stderr_thread:
+            stderr_thread.join()
+        if stdout_thread:
+            stdout_thread.join()
+        if f:
+            f.close()
+        return ChildResult(
+            return_code=exit_code, 
+            stdout="".join(result_stdout), 
+            stderr="".join(result_stderr)
+        )    
+    except Exception as e:
+        stderr_print(f"Excute command '{args}' failed: {e}")
+        return ChildResult(
+            return_code=1, 
+            stdout="", 
+            stderr=str(e)
+        )
+        
+
