@@ -72,7 +72,8 @@ class TaskManager:
             #stdout=subprocess.DEVNULL,
             #stderr=subprocess.DEVNULL,
             startupinfo=startupinfo,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=='nt' else 0
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=='nt' else 0,
+            cwd=os.getcwd()
         )
         
         # 记录任务信息（此时PID为wrapper进程的PID）

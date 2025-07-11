@@ -78,7 +78,8 @@ try:
                 stderr=subprocess.PIPE,
                 bufsize=1,
                 universal_newlines=True,
-                creationflags=0x08000000 if os.name == 'nt' else 0
+                creationflags=0x08000000 if os.name == 'nt' else 0,
+                cwd=os.getcwd()
             )
 
             stderr_thread = threading.Thread(

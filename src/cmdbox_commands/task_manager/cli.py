@@ -1,7 +1,10 @@
 import click
 from cmdbox_commands.task_manager.manager import TaskManager
 
-@click.group(invoke_without_command=True)
+@click.group(
+    invoke_without_command=True,
+    epilog='taskbm COMMAND --help，查看子命令帮助',
+)
 @click.option('-v', '--version', 'show_version', is_flag=True, help='显示版本号')
 def cli(show_version):
     """任务管理命令行工具"""
@@ -13,7 +16,7 @@ def cli(show_version):
 @click.argument('command')
 @click.option('-n', '--name', help='任务名称，未指定默认为命令')
 @click.option('-s', '--until-succeed', is_flag=True, help='直到成功才退出')
-@click.option('-i', '--interval', type=int, default=30, help='失败后重试间隔（秒）, 默认30秒')
+@click.option('-i', '--interval', type=int, default=30, show_default=True, help='失败后重试间隔（秒）')
 @click.option('-e', '--tee_error', is_flag=True, help='将错误日志同步输出到终端')
 def submit(command, name, until_succeed, interval, tee_error):
     """提交新任务"""
