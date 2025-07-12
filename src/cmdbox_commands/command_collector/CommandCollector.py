@@ -46,7 +46,7 @@ class CommandCollector:
         })
         
         # 使用json格式保存，支持注释
-        with open(module_path, 'w') as f:
+        with open(module_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
         print(f"命令已添加到模块 [{module}]")
     
@@ -184,5 +184,16 @@ class CommandCollector:
         """加载模块数据"""
         if not path.exists():
             return []
-        with open(path) as f:
-            return json.load(f)
+        try:
+            with open(path, encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"加载模块 [{path}] 失败: {e}")
+            print(f"请检查文件 [{path}] 是否为正确的json格式")
+        except UnicodeDecodeError as e:
+            print(f"加载模块 [{path}] 失败: {e}")
+            print(f"请检查文件 [{path}] 是否为utf-8编码")
+        except Exception as e:
+            print(f"加载模块 [{path}] 失败: {e}")
+        return []
+            
