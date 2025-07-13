@@ -6,7 +6,7 @@ from typing import Union, Optional
 from pydantic import BaseModel, field_validator
 from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, PyprojectToml
 from cmdbox_commands.cmd_register.config import is_debug
-from .utils import child_run, Base32V
+from .utils import child_run, Base32V, check_command_exists
 
 class Command(BaseModel):
     alias: str
@@ -157,7 +157,8 @@ class PyProject:
                 if is_installed:
                     return True, project_name
             
-            if shutil.which(alias):
+            if check_command_exists(alias):
+            # if shutil.which(alias):
                 return True, "__sys_system__"
             return False, None
 

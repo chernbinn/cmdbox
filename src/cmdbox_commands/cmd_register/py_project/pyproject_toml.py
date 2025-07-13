@@ -1,10 +1,10 @@
-from random import shuffle
+import shutil
 import subprocess
 import click
 from pydantic import BaseModel, field_validator
 from typing import Literal
 from pathlib import Path
-from .utils import check_command_exist
+from .utils import check_command_exists
 
 class ScriptEntry(BaseModel):
     cmd_name: str
@@ -28,7 +28,8 @@ class ScriptEntry(BaseModel):
         click.echo(f"validate cmd_name '{v}' end")
         return v
         """
-        if shuffle.which(v):
+        if check_command_exists(v):
+        #if shutil.which(v):
             raise ValueError(f"自定义命令 '{v}' already exists")
         return v
 

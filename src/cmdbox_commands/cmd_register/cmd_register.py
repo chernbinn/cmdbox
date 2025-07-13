@@ -5,6 +5,7 @@ from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
 from toml import load, dump
+from cmdbox_commands.cmd_register.py_project.utils import check_command_exists
 from cmdbox_commands.cmd_register.py_project.py_project import PyProject, Command
 from cmdbox_commands.cmd_register.config import is_debug
 
@@ -24,7 +25,7 @@ class AliasCMD(Command):
             is_gui=is_gui,
             description=description
         )
-        self.project_name = project_name
+        self.project_name = project_name.lower()
 
     def __eq__(self, value: object, /) -> bool:
         if not isinstance(value, AliasCMD):
@@ -39,7 +40,7 @@ class AliasCMD(Command):
 
 class CmdResiter:
     def __init__(self, cmd_register_toml: Path):
-        self.cmd_register = {}
+        self.cmd_register = defaultdict(dict)
         self.cmd_register_toml = cmd_register_toml
         if self.cmd_register_toml.exists():
             try:
@@ -50,7 +51,7 @@ class CmdResiter:
                 if not "get_empty_table" in str(e):
                     click.echo(f"load cmd_register_toml failed: {e}")
                     raise e
-                self.cmd_register = {}
+                self.cmd_register = defaultdict(dict)
 
     def _update_project(self, project_name: str) -> bool:
         commands = []
@@ -95,7 +96,7 @@ class CmdResiter:
                     self.cmd_register[alias_cmd.alias]['project_name']
                 )
             if alias_cmd != old_alias_cmd:
-                click.echo(f'alias "{alias_cmd.alias}" already configured')
+                click.echo(f'Alias "{alias_cmd.alias}" already configured')
                 alias_info = self.cmd_register[alias_cmd.alias]
                 click.echo("\nConfigured info:")
                 click.echo(f'   project_name: {alias_info["project_name"]}')
@@ -104,20 +105,23 @@ class CmdResiter:
 
                 return False
             b_equal = True
-        # to do: equal and not configured
+        # to do: equal or not configured
         
-        b_installed, installed_project = PyProject.is_installed(alias_cmd.alias)
+        b_installed = check_command_exists(alias_cmd.alias)
+        installed_project = PyProject.get_project_name(alias_cmd.alias)
         #b_configured = alias_cmd.alias in self.cmd_register
-        if installed_project == "__sys_system__":
+        if b_installed and not installed_project:
             #click.echo(f'Warning: alias "{alias_cmd.alias}" is system command, can not be registered')
-            raise ValueError(f'alias "{alias_cmd.alias}" is system command, can not be registered')
+            raise ValueError(f'Alias "{alias_cmd.alias}" exist in non-alias commands, can not be registered')
 
         if b_installed:
-            if b_equal:
-                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
-                return False
-            
             actual_comman = PyProject.get_actual_command(alias_cmd.alias)
+
+            if b_equal and installed_project == alias_cmd.project_name and actual_comman == alias_cmd.command:
+                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
+                return False            
+            
+            #b_installed, installed_project = PyProject.is_installed(alias_cmd.alias)
             if actual_comman == alias_cmd.command and installed_project == alias_cmd.project_name:
                 click.echo(f'The same alias "{alias_cmd.alias}" already installed')
                 self.cmd_register[alias_cmd.alias] = {
@@ -202,27 +206,30 @@ class CmdResiter:
             if alias in self.cmd_register:
                 project_name = self.cmd_register[alias]['project_name']
             else:
-                project_name = "--"
-
-        if alias and project_name:
-            if alias in self.cmd_register:
-                if self.cmd_register[alias]['project_name'] != project_name:
-                    raise ValueError(f'alias {alias} not in project {project_name}')
-                del self.cmd_register[alias]
-                self._save()
-            else:
-                if project_name == "--":
-                    project_name = None
-                b_installed, project = PyProject.is_installed(alias, project_name)
-                if not b_installed:
-                    click.echo(f'alias "{alias}" dose not exist{f"in {project_name}" if project_name else ""}')
+                if not check_command_exists(alias):   
+                    click.echo(f'Alias "{alias}" dose not exist{f"in {project_name}" if project_name else ""}')
                     return True
-                project_name = project
-            if self._check_exist(project_name):
-                res = self._update_project(project_name)
-            else:
-                res = PyProject.uninstall(project_name)
-            return res
+                project_name = PyProject.get_project_name(alias)
+                if not project_name :
+                    click.echo(f'Alias "{alias}" is not alias command, can not be removed')
+                    return True
+                """
+                if project_name == "__sys_system__":
+                    click.echo(f'Alias "{alias}" is system command, can not be removed')
+                    return True
+                """
+
+        if alias in self.cmd_register:            
+            if self.cmd_register.get(alias, {}).get('project_name') != project_name:
+                click.echo(f'Alias "{alias}" dose not exist{f"in {project_name}" if project_name else ""}')
+                return False
+            del self.cmd_register[alias]
+            self._save()
+            
+        if self._check_exist(project_name):            
+            res = self._update_project(project_name)
+        else:
+            res = PyProject.uninstall(project_name)
         return res
     
     def list(self, show_project_name = None)->None:

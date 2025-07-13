@@ -46,10 +46,11 @@ def main(ctx, show_version, debug):
 def register(alias: str, command: str, is_gui: bool = False, 
             description: str = '', project_name = 'default', 
             save_temp: bool = False, force_install: bool = False):
-    """注册自定义命令
+    """
+    注册自定义命令
 
     \b
-    alias    自定义命令名称
+    alias    自定义命令名称，忽略大小写
     command  实际命令
     """
     try:
@@ -94,6 +95,33 @@ def list(project_name):
         cmd_register.list(project_name)
     except ValueError as e:
         click.echo(f"列出自定义命令失败: {str(e)}")
+        if is_debug():
+            import traceback
+            traceback.print_exc()
+
+@main.command()
+@click.option('-p', '--project', 'project_name', default=None, help='分组名称')
+@click.option('-s', '--strategy', 'strategy', type=click.Choice(['configure', 'installed', 'mix'], 
+    case_sensitive=False), 
+    prompt=True,
+    prompt_required=False,
+    default='mix',
+    help="""
+    \b
+    同步策略。
+    configure: 仅同步配置文件中的自定义命令，安装未安装的。
+    installed: 仅同步已安装的自定义命令，配置未配置的。
+    mix:       双向同步，安装未安装的配置，并配置已安装的自定义命令（默认）
+    """)
+def sync(strategy, project_name = None):
+    """
+    同步配置的自定义命令和安装的自定义命令，使配置和安装保持一致。"""
+    try:
+        click.echo(f"同步策略: {strategy}")
+        pass
+        #cmd_register.sync(configure, installed, mix, project_name)
+    except ValueError as e:
+        click.echo(f"同步自定义命令失败: {str(e)}")
         if is_debug():
             import traceback
             traceback.print_exc()

@@ -4,7 +4,27 @@ import sys,os
 import click
 import subprocess
 import threading
+import signal
+import time
 from pathlib import Path
+
+_child_process = None
+_should_exit = False
+
+def sigint_handler(sig, frame):
+    click.echo("\nCtrl+C pressed, exiting...")
+    global _child_process, _should_exit
+
+    _should_exit = True
+    if _child_process:
+        # Terminate the process group on Unix-like systems
+        if os.name == 'posix':
+            os.killpg(os.getpgid(_child_process.pid), signal.SIGTERM)
+        else:
+            click.echo(f"----Child process id: {{_child_process.pid}}")
+            # On Windows, use taskkill to ensure the process tree is terminated
+            subprocess.call(['taskkill', '/F', '/T', '/PID', str(_child_process.pid)])
+    sys.exit(0)
 
 def stderr_print(line):
     print(line, file=sys.stdout, flush=True)
@@ -27,12 +47,14 @@ def get_package_name():
 @click.pass_context
 @click.option("-v", 'verbose', count=True, show_default=True, help="Enable debug mode, more log use -vv, max count 2")
 @click.option("--log-file", 'log_file', type=click.Path(), help="Log file")
-@click.option('--run-sync', 'run_sync', is_flag=True, help="同步运行命令，可能会阻塞命令行直到命令执行完成。默认后台执行命令")
+@click.option('--run-sync', 'run_sync', is_flag=True, help="同步运行命令，阻塞命令行直到命令执行完成，比较耗资源。默认后台执行命令")
 @click.option("--command", 'act_command', is_flag=True, help="获取alias对应的真实命令")
 @click.option("--project-name", '_project_name', is_flag=True, help="获取命令所在组名")
 @click.option('--help', 'help', is_flag=True, help="Show help message")
 @click.argument("args", nargs=-1)
 def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_name):
+    signal.signal(signal.SIGINT, sigint_handler)
+
     command = r"{command}"
     if act_command:
         click.echo(command)
@@ -85,7 +107,21 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
                     args=(proc.stdout, f, True), daemon=True)
             stdout_thread.start()
         if run_sync:
-            proc.wait()
+            global _child_process
+            _child_process = proc
+            click.echo(f"Child process id: {{proc.pid}}")
+            if os.name == 'nt':
+                try:
+                    while True:
+                        if _child_process.poll() is not None:
+                            break
+                        if _should_exit:
+                            break
+                        time.sleep(10)
+                except KeyboardInterrupt:
+                    sigint_handler(signal.SIGINT, None)
+            else:
+                proc.wait()
             if stderr_thread:
                 stderr_thread.join()
             if stdout_thread:

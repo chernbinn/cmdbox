@@ -3,7 +3,12 @@ import sys,os
 import click
 import subprocess
 import threading
+import signal
+import time
 from pathlib import Path
+
+_child_process = None
+_should_exit = False
 
 def stderr_print(line):
     """
@@ -32,16 +37,33 @@ def get_package_name():
     # 获取当前代码的包名
     return Path(__file__).parent.name
 
+def sigint_handler(sig, frame):
+    click.echo("\nCtrl+C pressed, exiting...")
+    global _child_process, _should_exit
+
+    _should_exit = True
+    if _child_process:
+        # Terminate the process group on Unix-like systems
+        if os.name == 'posix':
+            os.killpg(os.getpgid(_child_process.pid), signal.SIGTERM)
+        else:
+            click.echo(f"----Child process id: {_child_process.pid}")
+            # On Windows, use taskkill to ensure the process tree is terminated
+            subprocess.call(['taskkill', '/F', '/T', '/PID', str(_child_process.pid)])
+    sys.exit(0)
+
 @click.command(context_settings={"ignore_unknown_options": True}, help="Alias command")
 @click.pass_context
 @click.option("-v", 'verbose', count=True, show_default=True, help="Enable debug mode, more log use -vv, max count 2")
 @click.option("--log-file ", 'log_file', type=click.Path(), help="Log file")
 @click.option('--help', 'help', is_flag=True, help="Show help message")
-@click.option('--run-sync', 'run_sync', is_flag=True, help="同步运行命令，可能会阻塞命令行直到命令执行完成。默认后台执行命令")
+@click.option('--run-sync', 'run_sync', is_flag=True, help="同步运行命令，可能会阻塞命令行直到命令执行完成，比较耗资源。默认后台执行命令")
 @click.option("--command", 'act_command', is_flag=True, help="获取alias对应的真实命令")
 @click.option("--project-name", '_project_name', is_flag=True, help="获取命令所在组名")
 @click.argument("args", nargs=-1)
 def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_name):
+    signal.signal(signal.SIGINT, sigint_handler)
+
     command = r"C:\\Program Files\\Notepad++\\notepad++.exe"
     if act_command:
         click.echo(command)
@@ -59,8 +81,10 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
         _args.extend(['--help'])
     command = " ".join([command] + _args)
     if verbose > 0:
-        click.echo(f"Excute command: {command}")   
+        click.echo(f"Excute command: {command}")
 
+    if os.name == 'nt':
+        creation_flags = subprocess.CREATE_NO_WINDOW
     try:
         proc = subprocess.Popen(
                 ["C:\\Program Files\\Notepad++\\notepad++.exe"] + _args,
@@ -70,7 +94,7 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
                 stderr=subprocess.PIPE,
                 bufsize=1,
                 universal_newlines=True,
-                creationflags=0x08000000 if os.name == 'nt' else 0
+                creationflags=creation_flags if os.name == 'nt' else 0
             )
         stderr_thread = None
         stdout_thread = None
@@ -80,7 +104,7 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
             Path(log_file).parent.mkdir(parents=True, exist_ok=True)
             f = open(log_file, "w", encoding="utf-8")
 
-        if verbose > 0 and verbose < 2:
+        if verbose > 0:
             stderr_thread = threading.Thread(
                     target=read_stream, 
                     args=(proc.stderr, f, True), daemon=True)
@@ -91,7 +115,22 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
                     args=(proc.stdout, f, True), daemon=True)
             stdout_thread.start()
         if run_sync:
-            proc.wait()
+            global _child_process
+            _child_process = proc
+            click.echo(f"Child process id: {proc.pid}")
+            # proc.wait()
+            if os.name == 'nt':
+                try:
+                    while True:
+                        if _child_process.poll() is not None:
+                            break
+                        if _should_exit:
+                            break
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    sigint_handler(signal.SIGINT, None)
+            else:
+                proc.wait()
             if stderr_thread:
                 stderr_thread.join()
             if stdout_thread:
@@ -103,7 +142,7 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
         click.echo(f"Excute command '{command}' failed: {e}", file=sys.stderr)
         click.echo(ctx.get_help())
         sys.exit(1)
-
+    
 if __name__ == "__main__":
     main()
         
