@@ -10,10 +10,11 @@ import psutil
 from pathlib import Path
 from jinja2 import Template
 
+TASKBM_DB = os.environ.get("TASKBM_DB", os.fspath(Path.home() / ".cmdbox"/ "task_manager"))
 class TaskManager:
     def __init__(self):
-        self.db_file = os.fspath(Path.home() / ".cmdbox"/ "task_manager" / "taskdb.json")
-        self.log_dir = os.fspath(Path.home() / ".cmdbox"/ "task_manager" / "logs")
+        self.db_file = os.fspath(Path(TASKBM_DB) / "taskdb.json")
+        self.log_dir = os.fspath(Path(TASKBM_DB) / "logs")
 
         os.makedirs(self.log_dir, exist_ok=True)
         self._init_db()

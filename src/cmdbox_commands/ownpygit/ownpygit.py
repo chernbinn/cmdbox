@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 
 # 配置目录和文件路径
-DB_DIR = Path.home() / ".cmdbox" / "ownpygit" / "db"
+DB_DIR = os.environ.get("OWNPYGIT_DB", Path.home() / ".cmdbox" / "ownpygit" / "db")
 CONFIG_FILE = DB_DIR / "ownpygit_repo.cfg"
 HISTORY_FILE = DB_DIR / "ownpygit_history.cfg"
 ALIAS_FILE = DB_DIR / "ownpygit_alias.cfg"
@@ -489,6 +489,7 @@ def main():
         print("                             注意：cd命令是进入当前仓库下的目录，不会改变仓库的工作目录")
         print("Options:")
         print("  -h, --help   显示帮助信息")
+        print("  --path      显示配置文件路径")
         print("  --version    显示版本信息")
         return
     
@@ -510,6 +511,8 @@ def main():
             return
         alias = sys.argv[3] if len(sys.argv) > 3 else None
         create_repo(sys.argv[2], alias)
+    elif command == "--path":
+        print(DB_DIR)
     elif command == "--version":
         try:
             from cmdbox.cmdbox import _version

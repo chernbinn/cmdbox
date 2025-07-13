@@ -6,6 +6,7 @@ except:
 
 import click
 from importlib.metadata import entry_points
+from pathlib import Path
 """
 try:
     from pkg_resources import iter_entry_points
@@ -49,7 +50,8 @@ def get_gui_scripts():
 @click.command()
 @click.version_option(version=__version__, prog_name='cmdbox')
 @click.option('-l', '--list', 'show_list', is_flag=True, help='查看支持的命令行工具')
-def cli(show_list):
+@click.option('-p', '--path', 'show_path', is_flag=True, help='查看命令行工具的文件存储路径')
+def cli(show_list, show_path):
     """任务管理命令行工具"""
     # 实现--list选项功能
     if show_list:
@@ -63,10 +65,14 @@ def cli(show_list):
         gui_scripts = get_gui_scripts()
         for script in gui_scripts:
             click.echo(f"  {script['name']}")
-        click.echo()
+        click.echo()    
 
         if len(scripts) > 0 or len(gui_scripts) > 0:
             click.echo(f"命令使用方式，COMMAND --help查看，例如：{scripts[0]['name']} --help")
+
+    if show_path:
+        click.echo(Path.home() / ".cmdbox")
+        return
 
 def _version():
     click.echo(f"cmdbox version: {__version__}")

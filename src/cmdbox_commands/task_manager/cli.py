@@ -1,4 +1,5 @@
 import click
+from pathlib import Path
 from cmdbox_commands.task_manager.manager import TaskManager
 
 @click.group(
@@ -6,11 +7,16 @@ from cmdbox_commands.task_manager.manager import TaskManager
     epilog='taskbm COMMAND --help，查看子命令帮助',
 )
 @click.option('-v', '--version', 'show_version', is_flag=True, help='显示版本号')
-def cli(show_version):
+@click.option('--path', 'show_path', is_flag=True, help='获取配置文件路径')
+def cli(show_version, show_path):
     """任务管理命令行工具"""
     if show_version:
         from cmdbox.cmdbox import _version
         _version()
+    if show_path:
+        manager = TaskManager()
+        click.echo(Path(manager.db_file).parent)
+        return
 
 @cli.command()
 @click.argument('command')

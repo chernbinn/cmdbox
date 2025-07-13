@@ -4,7 +4,8 @@ from pathlib import Path
 from cmdbox_commands.cmd_register.cmd_register import CmdResiter
 from cmdbox_commands.cmd_register.config import is_debug
 
-cmd_register = CmdResiter(Path.home() / '.cmdbox' / 'cmd_register' / 'cmd_register.toml')
+CMD_REGISTER_DB = os.environ.get("CMD_REGISTER_DB", os.fspath(Path.home() / '.cmdbox' / 'cmd_register'))
+cmd_register = CmdResiter(Path(CMD_REGISTER_DB) / 'cmd_register.toml')
 
 @click.group(
     invoke_without_command=True,
@@ -12,8 +13,9 @@ cmd_register = CmdResiter(Path.home() / '.cmdbox' / 'cmd_register' / 'cmd_regist
 )
 @click.option('-v', '--version', 'show_version', is_flag=True, help='显示版本号')
 @click.option('--debug', 'debug', is_flag=True, help='调试模式')
+@click.option('--path', 'show_path', is_flag=True, help='获取配置文件路径')
 @click.pass_context
-def main(ctx, show_version, debug):
+def main(ctx, show_version, debug, show_path):
 
     # hele文档按照原格式显示
     """
@@ -26,6 +28,9 @@ def main(ctx, show_version, debug):
     if show_version:
         from cmdbox.cmdbox import _version
         _version()
+        return
+    if show_path:
+        click.echo(cmd_register.cmd_register_toml.parent)
         return
     if debug:
         click.echo('调试模式')
@@ -118,8 +123,7 @@ def sync(strategy, project_name = None):
     同步配置的自定义命令和安装的自定义命令，使配置和安装保持一致。"""
     try:
         click.echo(f"同步策略: {strategy}")
-        pass
-        #cmd_register.sync(configure, installed, mix, project_name)
+        cmd_register.sync(strategy, project_name)
     except ValueError as e:
         click.echo(f"同步自定义命令失败: {str(e)}")
         if is_debug():

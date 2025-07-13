@@ -83,68 +83,7 @@ class CmdResiter:
             if is_debug():
                 import traceback
                 traceback.print_exc()
-            return False
-
-    def _pre_check_register(self, alias_cmd: AliasCMD)->bool:
-        b_equal = False
-        if alias_cmd.alias in self.cmd_register:
-            old_alias_cmd = AliasCMD(
-                    alias_cmd.alias, 
-                    self.cmd_register[alias_cmd.alias]['command'], 
-                    self.cmd_register[alias_cmd.alias]['is_gui'], 
-                    self.cmd_register[alias_cmd.alias]['description'], 
-                    self.cmd_register[alias_cmd.alias]['project_name']
-                )
-            if alias_cmd != old_alias_cmd:
-                click.echo(f'Alias "{alias_cmd.alias}" already configured')
-                alias_info = self.cmd_register[alias_cmd.alias]
-                click.echo("\nConfigured info:")
-                click.echo(f'   project_name: {alias_info["project_name"]}')
-                click.echo(f'   command: {alias_info["command"]}')
-                click.echo(f'   description: {alias_info["description"]}\n')
-
-                return False
-            b_equal = True
-        # to do: equal or not configured
-        
-        b_installed = check_command_exists(alias_cmd.alias)
-        installed_project = PyProject.get_project_name(alias_cmd.alias)
-        #b_configured = alias_cmd.alias in self.cmd_register
-        if b_installed and not installed_project:
-            #click.echo(f'Warning: alias "{alias_cmd.alias}" is system command, can not be registered')
-            raise ValueError(f'Alias "{alias_cmd.alias}" exist in non-alias commands, can not be registered')
-
-        if b_installed:
-            actual_comman = PyProject.get_actual_command(alias_cmd.alias)
-
-            if b_equal and installed_project == alias_cmd.project_name and actual_comman == alias_cmd.command:
-                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
-                return False            
-            
-            #b_installed, installed_project = PyProject.is_installed(alias_cmd.alias)
-            if actual_comman == alias_cmd.command and installed_project == alias_cmd.project_name:
-                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
-                self.cmd_register[alias_cmd.alias] = {
-                    'project_name': installed_project,
-                    'command': alias_cmd.command,
-                    'is_gui': alias_cmd.is_gui,
-                    'description': alias_cmd.description
-                }
-            else:
-                click.echo(f'The same alias "{alias_cmd.alias}" already installed, but configure is not equal')
-                click.echo(f'\nInstalled nnfo')
-                click.echo(f'   installed_project: {installed_project}')
-                click.echo(f'   command: {actual_comman}\n')
-                self.cmd_register[alias_cmd.alias] = {
-                    'project_name': installed_project,
-                    'command': actual_comman,
-                    'is_gui': False,
-                    'description': ""
-                }
-
-            self._save()
-            return False
-        return True
+            return False    
 
     def register(self, alias: str, command: str, is_gui: bool = False, 
                 description: str = '', project_name = 'default',
@@ -172,23 +111,7 @@ class CmdResiter:
         if not save_temp and temp_path.exists():
             shutil.rmtree(temp_path)
 
-        return res
-
-    def _remove_proejct(self, project_name: str):
-        if not self._check_exist(project_name):
-            b_installed, project = PyProject.is_installed(None, project_name)
-            if not b_installed:
-                click.echo(f'project {project_name} not exist')
-                return True            
-
-        if click.confirm(f"确定删除整个组 '{project_name}'的命令吗？"):
-            res = PyProject.uninstall(project_name)
-            if res:
-                self._del_project(project_name)
-                self._save()
-            return res
-        click.echo("取消删除")
-        return False
+        return res    
     
     def remove(self, alias: str = None, project_name:str = None)->bool:
         if not alias and not project_name:
@@ -206,7 +129,7 @@ class CmdResiter:
             if alias in self.cmd_register:
                 project_name = self.cmd_register[alias]['project_name']
             else:
-                if not check_command_exists(alias):   
+                if not check_command_exists(alias):
                     click.echo(f'Alias "{alias}" dose not exist{f"in {project_name}" if project_name else ""}')
                     return True
                 project_name = PyProject.get_project_name(alias)
@@ -225,7 +148,9 @@ class CmdResiter:
                 return False
             del self.cmd_register[alias]
             self._save()
-            
+
+        if not self._check_installed(alias):
+            return True
         if self._check_exist(project_name):            
             res = self._update_project(project_name)
         else:
@@ -246,7 +171,7 @@ class CmdResiter:
             project_name_list = [show_project_name]
             real_projects = [show_project_name] if show_project_name in real_projects else []
         else:
-            project_name_list = sorted(set([cmd['project_name'] for cmd in self.cmd_register.values()]))
+            project_name_list = self._get_projects()
             project_name_list = set(project_name_list + real_projects)
         
         only_conf_projects: set[str] = set()
@@ -300,6 +225,86 @@ class CmdResiter:
             click.echo()
         if exist_diff:
             click.echo(f'运行 "cmdr sync --help" 了解同步配置、安装的命令')
+
+    def sync(self, strategy: str, project_name: str = None):
+        """
+        同步配置的自定义命令和安装的自定义命令，使配置和安装保持一致。"""
+        if strategy == 'installed':
+            self._sync_installed(project_name)
+        elif strategy == 'configure':
+            self._sync_configure(project_name)
+        elif strategy == 'mix':
+            self._sync_mix(project_name)
+        else:
+            raise ValueError(f'Unknown strategy: {strategy}')
+
+    def _pre_check_register(self, alias_cmd: AliasCMD)->bool:
+        b_equal = False
+        if alias_cmd.alias in self.cmd_register:
+            old_alias_cmd = AliasCMD(
+                    alias_cmd.alias, 
+                    self.cmd_register[alias_cmd.alias]['command'], 
+                    self.cmd_register[alias_cmd.alias]['is_gui'], 
+                    self.cmd_register[alias_cmd.alias]['description'], 
+                    self.cmd_register[alias_cmd.alias]['project_name']
+                )
+            if alias_cmd != old_alias_cmd:
+                click.echo(f'Alias "{alias_cmd.alias}" already configured')
+                alias_info = self.cmd_register[alias_cmd.alias]
+                click.echo("\nConfigured info:")
+                click.echo(f'   project_name: {alias_info["project_name"]}')
+                click.echo(f'   command: {alias_info["command"]}')
+                click.echo(f'   description: {alias_info["description"]}\n')
+
+                return False
+            b_equal = True
+        # to do: equal or not configured
+        
+        b_installed = check_command_exists(alias_cmd.alias)
+        installed_project = PyProject.get_project_name(alias_cmd.alias)
+        #b_configured = alias_cmd.alias in self.cmd_register
+        if b_installed and not installed_project:
+            #click.echo(f'Warning: alias "{alias_cmd.alias}" is system command, can not be registered')
+            raise ValueError(f'Alias "{alias_cmd.alias}" exist in non-alias commands, can not be registered')
+
+        if b_installed:
+            actual_comman = PyProject.get_actual_command(alias_cmd.alias)
+
+            if b_equal and installed_project == alias_cmd.project_name and actual_comman == alias_cmd.command:
+                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
+                return False            
+            
+            #b_installed, installed_project = PyProject.is_installed(alias_cmd.alias)
+            if actual_comman == alias_cmd.command and installed_project == alias_cmd.project_name:
+                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
+                self._add_miss_configure(alias_cmd.alias, installed_project, actual_comman, 
+                        alias_cmd.is_gui, alias_cmd.description)                
+            else:
+                click.echo(f'The same alias "{alias_cmd.alias}" already installed, but configure is not equal')
+                click.echo(f'\nInstalled nnfo')
+                click.echo(f'   installed_project: {installed_project}')
+                click.echo(f'   command: {actual_comman}\n')
+                self._add_miss_configure(alias_cmd.alias, installed_project, actual_comman)
+
+            self._save()
+            return False
+        return True
+    
+    def _remove_proejct(self, project_name: str):
+        if not self._check_exist(project_name):
+            b_installed, project = PyProject.is_installed(None, project_name)
+            if not b_installed:
+                click.echo(f'project {project_name} not exist')
+                return True            
+
+        if click.confirm(f"确定删除整个组 '{project_name}'的命令吗？"):
+            res = PyProject.uninstall(project_name)
+            if res:
+                self._del_project(project_name)
+                self._save()
+            return res
+        click.echo("取消删除")
+        return False
                 
     def _check_installed_by_installedlist(self, alias: str, installed: list)->bool:
         if not alias:
@@ -334,6 +339,10 @@ class CmdResiter:
         project_name_list = sorted(set([cmd['project_name'] for cmd in self.cmd_register.values()]))
         return project_name in project_name_list
 
+    @lru_cache
+    def _get_projects(self):
+        return sorted(set([cmd['project_name'] for cmd in self.cmd_register.values()]))
+
     def _del_project(self, project_name: str):
         for alias, cmd in self.cmd_register.items():
             if cmd['project_name'] != project_name:
@@ -346,4 +355,92 @@ class CmdResiter:
 
     def _load(self):
         with open(self.cmd_register_toml, 'r', encoding='utf-8') as f:
-            self.cmd_register = load(f)
+            self.cmd_register = load(f)    
+
+    def _sync_installed(self, project_name: str = None):
+        """
+        同步已安装的自定义命令，使配置和安装保持一致。"""
+        if project_name:
+            self._sync_installed_project(project_name)
+        else:
+            for project_name in PyProject.get_installed_projects():
+                self._sync_installed_project(project_name)
+
+    def _sync_installed_project(self, project_name: str):
+        """
+        同步已安装项目的自定义命令，使配置和安装保持一致。"""
+        installed_commands = PyProject.get_project_commands(project_name)
+        for alias in installed_commands:
+            if self._check_configured(alias):
+                continue
+            self._add_miss_configure(alias, project_name, PyProject.get_actual_command(alias))
+        self._save()
+
+    def _sync_configure(self, project_name: str = None):
+        """
+        同步配置的自定义命令，使配置和安装保持一致。"""
+        if project_name:
+            self._sync_configure_project(project_name)
+        else:
+            for project_name in self._get_projects():
+                self._sync_configure_project(project_name)
+
+    def _sync_configure_project(self, project_name: str):
+        """
+        同步配置项目的自定义命令，使配置和安装保持一致。"""
+        for alias in self.cmd_register:
+            if self._check_installed(alias):
+                continue
+            else:
+                b_installed, _ = PyProject.is_installed(alias, project_name)
+                if not b_installed:
+                    break
+            
+        if not self._update_project(project_name):
+            click.echo(f"Sync project '{project_name}' failed")
+            raise ValueError(f"Sync project '{project_name}' failed")            
+
+    def _check_installed(self, alias: str)->bool:
+        """
+        检查自定义命令是否已安装。"""
+        if check_command_exists(alias):
+            if PyProject.get_actual_command(alias):
+                return True
+        return False
+
+    def _check_non_alias_installed(self, alias: str)->bool:
+        """
+        检查自定义命令是否为系统命令。"""
+        if (check_command_exists(alias) and 
+            not PyProject.get_actual_command(alias) and 
+            not PyProject.get_project_name(alias)):
+            return True
+        return False
+    
+    def _sync_mix(self, project_name: str = None):
+        """
+        同步配置和已安装的自定义命令，使配置和安装保持一致。"""
+        if project_name:
+            self._sync_mix_project(project_name)
+        else:
+            projects = set(self._get_projects() + PyProject.get_installed_projects())
+            for project_name in projects:
+                self._sync_mix_project(project_name)
+        
+    def _sync_mix_project(self, project_name: str):
+        """
+        同步配置项目和已安装项目的自定义命令，使配置和安装保持一致。"""
+        self._sync_installed_project(project_name)
+        self._sync_configure_project(project_name)
+
+    def _add_miss_configure(self, alias: str, project_name: str, command: str, 
+                is_gui: bool=False, description:str = ""):
+        """
+        同步配置项目的自定义命令，使配置和安装保持一致。"""
+        self.cmd_register[alias] = {
+            'project_name': project_name,
+            'command': command,
+            'is_gui': is_gui,
+            'description': description
+        }
+
