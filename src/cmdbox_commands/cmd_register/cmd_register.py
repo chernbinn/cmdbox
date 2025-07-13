@@ -1,12 +1,41 @@
 
-from msvcrt import LK_UNLCK
 import click
+import shutil
 from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
 from toml import load, dump
 from cmdbox_commands.cmd_register.py_project.py_project import PyProject, Command
 from cmdbox_commands.cmd_register.config import is_debug
+
+class AliasCMD(Command):
+    project_name: str = 'default' 
+    # 继承了BaseModel，project_name不再是类属性，是BaseModel的模型字段
+    # 类属性必须声明模型字段，不再具备类属性，比如这里注释掉project_name，__init__中初始化project_name会报错
+
+    def __init__(self, alias: str, 
+            command: str, 
+            is_gui: bool = False, 
+            description: str = '', 
+            project_name: str = 'default'):
+        super().__init__(
+            alias=alias,
+            command=command,
+            is_gui=is_gui,
+            description=description
+        )
+        self.project_name = project_name
+
+    def __eq__(self, value: object, /) -> bool:
+        if not isinstance(value, AliasCMD):
+            return False
+        if all([
+            value.alias == self.alias,
+            value.command == self.command,
+            value.project_name == self.project_name
+        ]):
+            return True
+        return False
 
 class CmdResiter:
     def __init__(self, cmd_register_toml: Path):
@@ -31,7 +60,7 @@ class CmdResiter:
                     continue
                 commands.append(
                     Command(
-                        cmd_name = alias,
+                        alias = alias,
                         command = cmd['command'],
                         is_gui = cmd['is_gui'],
                         description = cmd['description']
@@ -47,9 +76,6 @@ class CmdResiter:
         
             project.init(commands)
             project.install()
-            # 提示是否删除临时项目
-            if click.confirm(f"是否删除临时目录 '{project.project_path}'"):
-                project.clean()
             return True
         except Exception as e:
             click.echo(f"注册命令失败: {e}")
@@ -58,22 +84,91 @@ class CmdResiter:
                 traceback.print_exc()
             return False
 
-    def registe(self, alias: str, command: str, is_gui: bool = False, 
-                description: str = '', project_name = 'default')->bool:
-        if alias in self.cmd_register:
-            #raise ValueError(f'alias {alias} already exist')
-            click.echo(f'alias {alias} already exist')
+    def _pre_check_register(self, alias_cmd: AliasCMD)->bool:
+        b_equal = False
+        if alias_cmd.alias in self.cmd_register:
+            old_alias_cmd = AliasCMD(
+                    alias_cmd.alias, 
+                    self.cmd_register[alias_cmd.alias]['command'], 
+                    self.cmd_register[alias_cmd.alias]['is_gui'], 
+                    self.cmd_register[alias_cmd.alias]['description'], 
+                    self.cmd_register[alias_cmd.alias]['project_name']
+                )
+            if alias_cmd != old_alias_cmd:
+                click.echo(f'alias "{alias_cmd.alias}" already configured')
+                alias_info = self.cmd_register[alias_cmd.alias]
+                click.echo("\nConfigured info:")
+                click.echo(f'   project_name: {alias_info["project_name"]}')
+                click.echo(f'   command: {alias_info["command"]}')
+                click.echo(f'   description: {alias_info["description"]}\n')
+
+                return False
+            b_equal = True
+        # to do: equal and not configured
+        
+        b_installed, installed_project = PyProject.is_installed(alias_cmd.alias)
+        #b_configured = alias_cmd.alias in self.cmd_register
+        if installed_project == "__sys_system__":
+            #click.echo(f'Warning: alias "{alias_cmd.alias}" is system command, can not be registered')
+            raise ValueError(f'alias "{alias_cmd.alias}" is system command, can not be registered')
+
+        if b_installed:
+            if b_equal:
+                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
+                return False
+            
+            actual_comman = PyProject.get_actual_command(alias_cmd.alias)
+            if actual_comman == alias_cmd.command and installed_project == alias_cmd.project_name:
+                click.echo(f'The same alias "{alias_cmd.alias}" already installed')
+                self.cmd_register[alias_cmd.alias] = {
+                    'project_name': installed_project,
+                    'command': alias_cmd.command,
+                    'is_gui': alias_cmd.is_gui,
+                    'description': alias_cmd.description
+                }
+            else:
+                click.echo(f'The same alias "{alias_cmd.alias}" already installed, but configure is not equal')
+                click.echo(f'\nInstalled nnfo')
+                click.echo(f'   installed_project: {installed_project}')
+                click.echo(f'   command: {actual_comman}\n')
+                self.cmd_register[alias_cmd.alias] = {
+                    'project_name': installed_project,
+                    'command': actual_comman,
+                    'is_gui': False,
+                    'description': ""
+                }
+
+            self._save()
             return False
+        return True
+
+    def register(self, alias: str, command: str, is_gui: bool = False, 
+                description: str = '', project_name = 'default',
+                save_temp: bool = False, force_install: bool = False)->bool:
+
+        alias_cmd = AliasCMD(alias, command, is_gui, description, project_name)
+        if not self._pre_check_register(alias_cmd) and not force_install:
+            return False
+        
+        if force_install:
+            click.echo(f'Warning: force install alias "{alias_cmd.alias}"')
+
         self.cmd_register[alias] = {
             'project_name': project_name,
             'command': command,
             'is_gui': is_gui,
             'description': description
         }
+        res = False
         if self._update_project(project_name):
-            self._save()            
-            return True
-        return False
+            self._save()
+            res = True
+
+        temp_path = self.cmd_register_toml.parent / project_name
+        if not save_temp and temp_path.exists():
+            shutil.rmtree(temp_path)
+
+        return res
 
     def _remove_proejct(self, project_name: str):
         if not self._check_exist(project_name):
@@ -82,7 +177,7 @@ class CmdResiter:
                 click.echo(f'project {project_name} not exist')
                 return True            
 
-        if click.confirm(f"确定删除整个项目组 '{project_name}'的命令吗？"):
+        if click.confirm(f"确定删除整个组 '{project_name}'的命令吗？"):
             res = PyProject.uninstall(project_name)
             if res:
                 self._del_project(project_name)

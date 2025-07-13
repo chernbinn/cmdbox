@@ -1,3 +1,4 @@
+from random import shuffle
 import subprocess
 import click
 from pydantic import BaseModel, field_validator
@@ -27,7 +28,7 @@ class ScriptEntry(BaseModel):
         click.echo(f"validate cmd_name '{v}' end")
         return v
         """
-        if check_command_exist(v):
+        if shuffle.which(v):
             raise ValueError(f"自定义命令 '{v}' already exists")
         return v
 

@@ -19,19 +19,27 @@ def read_stream(stream, output_file, is_stderr=False):
         if is_stderr:
             stderr_print(line)
 
+def get_package_name():
+    # 获取当前代码的包名
+    return Path(__file__).parent.name
+
 @click.command(context_settings={{"ignore_unknown_options": True}}, help="{description}")
 @click.pass_context
 @click.option("-v", 'verbose', count=True, show_default=True, help="Enable debug mode, more log use -vv, max count 2")
 @click.option("--log-file", 'log_file', type=click.Path(), help="Log file")
 @click.option('--run-sync', 'run_sync', is_flag=True, help="同步运行命令，可能会阻塞命令行直到命令执行完成。默认后台执行命令")
 @click.option("--command", 'act_command', is_flag=True, help="获取alias对应的真实命令")
+@click.option("--project-name", '_project_name', is_flag=True, help="获取命令所在组名")
 @click.option('--help', 'help', is_flag=True, help="Show help message")
 @click.argument("args", nargs=-1)
-def main(ctx, args, verbose, log_file, help, act_command, run_sync):
+def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_name):
     command = r"{command}"
     if act_command:
         click.echo(command)
-        return command
+        return
+    if _project_name:
+        click.echo(get_package_name())
+        return
     if verbose > 0:
         #stderr_print(f"command: {{command}}")
         stderr_print(f"verbose: {{verbose}}")

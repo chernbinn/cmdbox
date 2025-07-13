@@ -6,25 +6,19 @@ from typing import Union, Optional
 from pydantic import BaseModel, field_validator
 from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, PyprojectToml
 from cmdbox_commands.cmd_register.config import is_debug
-from .utils import check_command_exist, child_run, Base32V
+from .utils import child_run, Base32V
 
 class Command(BaseModel):
-    cmd_name: str
-    is_gui: bool
+    alias: str
     command: str
-    description: str = ""
+    is_gui: bool = False
+    description: str = ''    
 
     def src_file_name(self):
-        return f'{self.cmd_name}_{"gui_" if self.is_gui else ""}cli.py'
+        return f'{self.alias}_{"gui_" if self.is_gui else ""}cli.py'
 
-    @field_validator('cmd_name')
-    def validate_command(cls, v):
-        if check_command_exist(v):
-            raise ValueError(f"cmd_name '{v}' already exists")
-        return v
-
-class PyProject:    
-    def __init__(self, project_path: str, project_name: str):        
+class PyProject:
+    def __init__(self, project_path: str, project_name: str):
         self.project_name = project_name
         self.project_path: str = project_path
         self.pyproject_toml: PyprojectToml = None
@@ -49,7 +43,7 @@ class PyProject:
         scripts = []
         for command in commands:
             scripts.append(ScriptEntry(
-                cmd_name=command.cmd_name,
+                cmd_name=command.alias,
                 cmd_type='gui-scripts' if command.is_gui else 'scripts',
                 cmd_entry=f'{self.project_name}.{command.src_file_name()[:-3]}:main'
             ))
@@ -139,6 +133,8 @@ class PyProject:
         """ 检查自定义命令是否被安装 """
         # pipx runpip cmdbox show -f cmdbox，当project不为None时
         # pipx list,当project为None时
+        if not alias:
+            raise ValueError(f"is_installed, alias can't be empty or None")
         command = None
         if project_name:
             command = f'pipx runpip {project_name} show -f {project_name}'
@@ -160,6 +156,9 @@ class PyProject:
                 is_installed, project_name = PyProject.is_installed(alias, project)
                 if is_installed:
                     return True, project_name
+            
+            if shutil.which(alias):
+                return True, "__sys_system__"
             return False, None
 
     @staticmethod
@@ -171,7 +170,7 @@ class PyProject:
             return []
         commands = []
         if is_debug():
-            click.echo(f"result.stdout: {result.stdout}")
+            click.echo(f"get_project_commands-result.stdout: {result.stdout}")
         for line in result.stdout.splitlines():
             if  line.count("Scripts\\") > 0:
                 if is_debug():
@@ -204,7 +203,17 @@ class PyProject:
         command = f'{alias} --command'
         result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
-            click.echo(f"result.stdout: {result.stdout}")
+            click.echo(f"get_actual_command-result.stdout: {result.stdout}")
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+
+    @staticmethod
+    def get_project_name(alias: str):
+        command = f'{alias} --project-name'
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+        if is_debug():
+            click.echo(f"get_actual_command-result.stdout: {result.stdout}")
         if result.returncode != 0:
             return None
         return result.stdout.strip()

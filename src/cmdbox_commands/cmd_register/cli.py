@@ -39,9 +39,13 @@ def main(ctx, show_version, debug):
 @click.argument('alias')
 @click.argument('command')
 #@click.option('-g', '--gui', 'is_gui', is_flag=True, help='有图形界面工具')
+@click.option('--save-temp', 'save_temp', is_flag=True, help='保存中间临时文件')
+#@click.option('--force', 'force_install', is_flag=True, help='强制安装命令，如果命令存在则被覆盖')
 @click.option('-d', '--description', 'description', default='', help='命令描述')
 @click.option('-p', '--project', 'project_name', default='default', help='分组名称')
-def registe(alias: str, command: str, is_gui: bool = False, description: str = '', project_name = 'default'):
+def register(alias: str, command: str, is_gui: bool = False, 
+            description: str = '', project_name = 'default', 
+            save_temp: bool = False, force_install: bool = False):
     """注册自定义命令
 
     \b
@@ -49,16 +53,17 @@ def registe(alias: str, command: str, is_gui: bool = False, description: str = '
     command  实际命令
     """
     try:
-        if cmd_register.registe(alias, command, is_gui, description, project_name):
-            click.echo(f"register command '{alias}' success")
+        if cmd_register.register(alias, command, is_gui, description, project_name, save_temp, force_install):
+            click.echo(f"Register command '{alias}' success")
+            if save_temp:
+                click.echo(f"中间临时文件路径：{cmd_register.parent / project_name}")
         else:
-            click.echo(f"register command '{alias}' failed")
+            click.echo(f"Register command '{alias}' failed")
     except ValueError as e:
+        click.echo(f"注册自定义命令失败: {str(e)}")
         if is_debug():
             import traceback
             traceback.print_exc()
-        #click.echo(e)
-        return
 
 @main.command()
 @click.option('-a', '--alias', 'alias', default=None, help='自定义命令名称')
@@ -74,7 +79,7 @@ def remove(alias: str = None, project_name:str = None):
         cmd_register.remove(alias, project_name)
         click.echo(f"删除自定义命令成功: {alias}")
     except ValueError as e:
-        click.echo(f"删除自定义命令失败: {e}")
+        click.echo(f"删除自定义命令失败: {str(e)}")
         if is_debug():
             import traceback
             traceback.print_exc()
@@ -88,7 +93,7 @@ def list(project_name):
     try:
         cmd_register.list(project_name)
     except ValueError as e:
-        click.echo(f"列出自定义命令失败: {e}")
+        click.echo(f"列出自定义命令失败: {str(e)}")
         if is_debug():
             import traceback
             traceback.print_exc()
