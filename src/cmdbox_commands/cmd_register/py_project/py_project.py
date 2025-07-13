@@ -1,13 +1,13 @@
 import shutil
 import subprocess
 import click
+from functools import lru_cache
 from typing import Union, Optional
-from dataclasses import dataclass
 from pydantic import BaseModel, field_validator
 from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, PyprojectToml
-from .utils import check_command_exist, child_run
+from cmdbox_commands.cmd_register.config import is_debug
+from .utils import check_command_exist, child_run, Base32V
 
-#@dataclass
 class Command(BaseModel):
     cmd_name: str
     is_gui: bool
@@ -56,10 +56,11 @@ class PyProject:
 
         self.pyproject_toml = PyprojectToml(
             project_name=self.project_name,
+            projec_version=Base32V.encrypt_version('0.1.0', f"cmdr_{self.project_name}"),
             scripts=scripts
         )
         click.echo(f"save pyproject.toml")
-        self.pyproject_toml.save_pyprojectToml(self.project_path/ 'pyproject.toml')    
+        self.pyproject_toml.save_pyprojectToml(self.project_path/ 'pyproject.toml')
 
     def install(self):
         # 先卸载旧版本
@@ -160,7 +161,53 @@ class PyProject:
                 if is_installed:
                     return True, project_name
             return False, None
-        
+
+    @staticmethod
+    @lru_cache
+    def get_project_commands(project_name: str):
+        command = f'pipx runpip {project_name} show -f {project_name}'
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+        if result.returncode != 0:
+            return []
+        commands = []
+        if is_debug():
+            click.echo(f"result.stdout: {result.stdout}")
+        for line in result.stdout.splitlines():
+            if  line.count("Scripts\\") > 0:
+                if is_debug():
+                    click.echo(f"line: {line}")
+                commands.append(line.split("Scripts\\")[1].rsplit('.', 1)[0])
+        return commands
+
+    @staticmethod
+    def get_installed_projects():
+        command = f'pipx list --short'
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+        result.check_returncode()
+        #click.echo(f"result.stdout: {result.stdout}")
+        projects = []
+        for project in result.stdout.splitlines():
+            _version = project.split()[1]
+            _, scrt_name = Base32V.decrypt_version(_version)
+            if is_debug():
+                click.echo(f"+++++project: {project}")
+                click.echo(f"+++++scrt_name: {scrt_name}")
+            if not scrt_name:
+                continue
+            sps = scrt_name.split('_')
+            if sps[0] == "cmdr" and sps[1]:
+                projects.append(sps[1])
+        return projects
+
+    @staticmethod
+    def get_actual_command(alias: str):
+        command = f'{alias} --command'
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+        if is_debug():
+            click.echo(f"result.stdout: {result.stdout}")
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
     
     def _file_content(self, command: Command):
         from cmdbox_commands.cmd_register.py_project.generator import generator_src

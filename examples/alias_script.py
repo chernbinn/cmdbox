@@ -33,15 +33,20 @@ def read_stream(stream, output_file, is_stderr=False):
 @click.option("-v", 'verbose', count=True, show_default=True, help="Enable debug mode, more log use -vv, max count 2")
 @click.option("--log-file ", 'log_file', type=click.Path(), help="Log file")
 @click.option('--help', 'help', is_flag=True, help="Show help message")
+@click.option('--run-sync', 'run_sync', is_flag=True, help="同步运行命令，可能会阻塞命令行直到命令执行完成。默认后台执行命令")
+@click.option("--command", 'act_command', is_flag=True, help="获取alias对应的真实命令")
 @click.argument("args", nargs=-1)
-def main(ctx, args, verbose, log_file, help):
+def main(ctx, args, verbose, log_file, help, act_command, run_sync):
     command = r"C:\\Program Files\\Notepad++\\notepad++.exe"
+    if act_command:
+        click.echo(command)
+        return command
     if verbose > 0:
         click.echo(f"command: {command}")
         click.echo(f"verbose: {verbose}")
         click.echo(f"log_file: {log_file}")
     _args = [item for item in args]
-    if help:
+    if help and ("--help" not in _args):
         #click.echo(f"help: {help}")
         _args.extend(['--help'])
     command = " ".join([command] + _args)
@@ -63,7 +68,7 @@ def main(ctx, args, verbose, log_file, help):
         stdout_thread = None
 
         f = None
-        if log_file:            
+        if log_file:
             Path(log_file).parent.mkdir(parents=True, exist_ok=True)
             f = open(log_file, "w", encoding="utf-8")
 
@@ -77,15 +82,14 @@ def main(ctx, args, verbose, log_file, help):
                     target=read_stream, 
                     args=(proc.stdout, f, True), daemon=True)
             stdout_thread.start()
-        proc.wait()
-        if stderr_thread:
-            stderr_thread.join()
-        if stdout_thread:
-            stdout_thread.join()
+        if run_sync:
+            proc.wait()
+            if stderr_thread:
+                stderr_thread.join()
+            if stdout_thread:
+                stdout_thread.join()
         if f:
             f.close()
-        if help:
-            click.echo(ctx.get_help())
         click.echo("\nCommand success")
     except Exception as e:
         click.echo(f"Excute command '{command}' failed: {e}", file=sys.stderr)

@@ -2,6 +2,7 @@ import sys,os
 import click
 import subprocess
 import threading
+import base64
 from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel
@@ -20,6 +21,28 @@ def check_command_exist(command: str) -> bool:
         return True
     click.echo(f"'{command}' not exist")
     return False
+
+class Base32V:
+    @staticmethod
+    def encrypt_version(base_version: str, secret: str) -> str:
+        # 使用 base32 编码并转为小写
+        encoded = base64.b32encode(secret.encode()).decode().lower().rstrip("=")
+        return f"{base_version}+{encoded}"
+
+    @staticmethod
+    def decrypt_version(full_version: str) -> (str, str):
+        if '+' not in full_version:
+            return full_version, None
+        base, _, local = full_version.partition('+')
+        # 补全 padding =
+        padded = local + "=" * ((8 - len(local) % 8) % 8)
+        try:
+            decoded = base64.b32decode(padded.upper()).decode()
+            return base, decoded
+        except Exception:
+            return base, None
+
+# -------------------------------------------------------------
 
 def stderr_print(line):
     print(line, file=sys.stdout, flush=True)
@@ -54,7 +77,7 @@ def child_run(args, verbose:Literal[0,1,2]=0, log_file:Path = None):
                 bufsize=1,
                 universal_newlines=True,
                 creationflags=0x08000000 if os.name == 'nt' else 0,
-                encoding='utf-8'
+                #encoding='utf-8'
             )
         stderr_thread = None
         stdout_thread = None

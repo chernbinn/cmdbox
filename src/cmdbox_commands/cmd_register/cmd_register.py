@@ -1,5 +1,8 @@
 
+from msvcrt import LK_UNLCK
 import click
+from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path
 from toml import load, dump
 from cmdbox_commands.cmd_register.py_project.py_project import PyProject, Command
@@ -129,20 +132,100 @@ class CmdResiter:
     
     def list(self, show_project_name = None)->None:
         # 按照project_name为一组显示
-        project_name_list = sorted(set([cmd['project_name'] for cmd in self.cmd_register.values()]))
-        if show_project_name != None:
-            if show_project_name not in project_name_list:
-                click.echo(f'project {show_project_name} not exist')
+        project_name_list = []
+        real_projects = PyProject.get_installed_projects()
+        if not real_projects and not self.cmd_register:
+            click.echo(f'No project installed')
+            return
+        if show_project_name:
+            if not self._check_exist(show_project_name) and show_project_name not in real_projects:
+                click.echo(f'Project "{show_project_name}" dose not exist')
                 return
-            project_name_list = [show_project_name]        
+            project_name_list = [show_project_name]
+            real_projects = [show_project_name] if show_project_name in real_projects else []
+        else:
+            project_name_list = sorted(set([cmd['project_name'] for cmd in self.cmd_register.values()]))
+            project_name_list = set(project_name_list + real_projects)
+        
+        only_conf_projects: set[str] = set()
+        only_conf_alias: dict[str, list[str]] = defaultdict(list)
+        only_installed_alias: dict[str, list[str]] = defaultdict(list)
+        for project_name in project_name_list:   
+            real_installed = []
+            if project_name in real_projects:
+                click.echo(f'命令组: {project_name}')
+                if self._check_exist(project_name):
+                    real_projects.remove(project_name)
+                real_installed = PyProject.get_project_commands(project_name)
+                click.echo(f'已安装命令: ')
+            else:
+                only_conf_projects.add(project_name)
+            
+            for alias in (set(self.cmd_register.keys()) | set(real_installed)):
+                if real_installed and self._check_installed_by_installedlist(alias, real_installed):
+                    command = None
+                    if self._check_configured(alias):
+                        real_installed.remove(alias)
+                        command = self.cmd_register[alias]['command']
+                    else:
+                        command = PyProject.get_actual_command(alias)
+                    click.echo(f'  {alias}{f": {command}" if command else ""}')
+                elif alias in self.cmd_register and self.cmd_register[alias]['project_name'] == project_name:
+                    only_conf_alias[project_name].append(alias)
+            if real_installed:
+                only_installed_alias[project_name] = real_installed
+                    
+        exist_diff = any([
+            len(only_installed_alias)>0 or len(real_projects)>0,
+            len(only_conf_projects)>0 or len(only_conf_alias)>0
+        ])
+        if exist_diff:
+            if real_projects or only_installed_alias:
+                click.echo("\nOnly installed - installed but not configured")
+            if real_projects:                    
+                click.echo(f'  Project:{real_projects}')
+            if only_installed_alias:
+                for project, alias_list in only_installed_alias.items():
+                    click.echo(f'  Project-alias:{project} - {alias_list}')
 
-        for project_name in project_name_list:
-            click.echo(f'命令组: {project_name}')
-            for alias, cmd in self.cmd_register.items():
-                if cmd['project_name'] != project_name:
-                    continue
-                click.echo(f'  {alias}: {cmd["command"]}')
+            if only_conf_projects or only_conf_alias:
+                click.echo("\nOnly configured - configured but not installed")
+            if only_conf_projects:
+                click.echo(f'  Project:{only_conf_projects}')
+            if only_conf_alias:
+                for project, alias_list in only_conf_alias.items():
+                    click.echo(f'  Project-alias:{project} - {alias_list}')
+            click.echo()
+        if exist_diff:
+            click.echo(f'运行 "cmdr sync --help" 了解同步配置、安装的命令')
+                
+    def _check_installed_by_installedlist(self, alias: str, installed: list)->bool:
+        if not alias:
+            raise ValueError('alias must be specified')
+        if not installed:
+            raise ValueError('installed must be specified')
+
+        if alias in installed:
+            return True
+        """
+        subfix = installed[0].rsplit('.', 1)[1]
+        command = f"{alias}.{subfix}"
+        if command in installed:
+            installed.remove(command)
+            return True
+        """
+        return False
+
+    def _check_configured(self, command: str)->bool:
+        if not command:
+            raise ValueError('command must be specified')
+        install_alias = command.rsplit('.', 1)[0]
+
+        if install_alias not in self.cmd_register:
+            return False
+        return True
     
+    @lru_cache
     def _check_exist(self, project_name: str):
         if not project_name:
             raise ValueError('project_name must be specified')

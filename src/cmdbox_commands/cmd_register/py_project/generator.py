@@ -23,10 +23,15 @@ def read_stream(stream, output_file, is_stderr=False):
 @click.pass_context
 @click.option("-v", 'verbose', count=True, show_default=True, help="Enable debug mode, more log use -vv, max count 2")
 @click.option("--log-file", 'log_file', type=click.Path(), help="Log file")
+@click.option('--run-sync', 'run_sync', is_flag=True, help="同步运行命令，可能会阻塞命令行直到命令执行完成。默认后台执行命令")
+@click.option("--command", 'act_command', is_flag=True, help="获取alias对应的真实命令")
 @click.option('--help', 'help', is_flag=True, help="Show help message")
 @click.argument("args", nargs=-1)
-def main(ctx, args, verbose, log_file, help):
+def main(ctx, args, verbose, log_file, help, act_command, run_sync):
     command = r"{command}"
+    if act_command:
+        click.echo(command)
+        return command
     if verbose > 0:
         #stderr_print(f"command: {{command}}")
         stderr_print(f"verbose: {{verbose}}")
@@ -39,6 +44,8 @@ def main(ctx, args, verbose, log_file, help):
     if verbose > 0:
         stderr_print(f"Excute command: {{command}}")
         if help: stderr_print("")
+    if help:
+            stderr_print(ctx.get_help())
     
     try:
         proc = subprocess.Popen(
@@ -69,15 +76,14 @@ def main(ctx, args, verbose, log_file, help):
                     target=read_stream, 
                     args=(proc.stdout, f, True), daemon=True)
             stdout_thread.start()
-        proc.wait()
-        if stderr_thread:
-            stderr_thread.join()
-        if stdout_thread:
-            stdout_thread.join()
+        if run_sync:
+            proc.wait()
+            if stderr_thread:
+                stderr_thread.join()
+            if stdout_thread:
+                stdout_thread.join()
         if f:
-            f.close()
-        if help:
-            stderr_print(ctx.get_help())
+            f.close()        
         stderr_print("\nCommand success")
     except Exception as e:
         stderr_print(f"Excute command '{{command}}' failed: {{e}}")

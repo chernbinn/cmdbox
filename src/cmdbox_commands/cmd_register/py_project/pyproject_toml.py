@@ -47,6 +47,7 @@ class ScriptEntry(BaseModel):
 
 class PyprojectToml(BaseModel):
     project_name: str
+    projec_version: str
     scripts: list[ScriptEntry]
     
     def __python_version(self):
@@ -99,7 +100,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "{self.project_name}"
-version = "0.1.0"
+version = "{self.projec_version}"
 dependencies = [
     "click>=8.0",
 ]

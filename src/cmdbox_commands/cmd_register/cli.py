@@ -85,7 +85,13 @@ def list(project_name):
     """
     列出所有自定义命令。
     """
-    cmd_register.list(project_name)
+    try:
+        cmd_register.list(project_name)
+    except ValueError as e:
+        click.echo(f"列出自定义命令失败: {e}")
+        if is_debug():
+            import traceback
+            traceback.print_exc()
 
 if __name__ == '__main__':
     main()
