@@ -33,3 +33,7 @@ taskbm kill <task_id>
 ```bash
 taskbm clean
 ```
+
+## 配置
+默认配置文件路径：`~/.cmdbox/task_manager`
+可以通过配置环境变量`TASKBM_DB`来更改配置文件路径。

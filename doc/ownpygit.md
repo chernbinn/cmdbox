@@ -90,3 +90,7 @@ ownpygit add .
 ownpygit commit -m "message"
 ownpygit push
 ```
+
+## 配置
+默认配置文件路径：`~/.cmdbox/ownpygit`
+可以通过配置环境变量`OWNPYGIT_DB`来更改配置文件路径。

@@ -56,7 +56,7 @@ cccmd search <关键词>
 
 ## 配置
 
-可以通过设置环境变量`STORAGE_DIR`来更改命令存储目录，默认为`~/.command_collector`
+可以通过设置环境变量`CCCMD_DBCCCMD_DB`来更改命令存储目录，默认为`~/.cmdbox/command_collector`
 
 
 
