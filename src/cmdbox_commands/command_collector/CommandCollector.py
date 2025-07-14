@@ -1,4 +1,4 @@
-import os
+import os, sys
 import json
 from pathlib import Path
 from typing import Dict, List
@@ -186,12 +186,14 @@ class CommandCollector:
         except json.JSONDecodeError as e:
             print(f"加载模块 [{path}] 失败: {e}")
             print(f"请检查文件 [{path}] 是否为正确的json格式")
+            self._handle_critical_error(e)
         except UnicodeDecodeError as e:
             print(f"加载模块 [{path}] 失败: {e}")
             print(f"请检查文件 [{path}] 是否为utf-8编码")
+            self._handle_critical_error(e)
         except Exception as e:
             print(f"加载模块 [{path}] 失败: {e}")
-        return []
+            self._handle_critical_error(e)        
 
     def _save_module(self, path: Path, data: List[Dict]):
         """保存模块数据"""
@@ -200,4 +202,11 @@ class CommandCollector:
                 json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
         except Exception as e:
             print(f"保存模块 [{path}] 失败: {e}")
+            self._handle_critical_error(e)
+
+    def _handle_critical_error(self, e: Exception):
+        """处理关键错误"""
+        print(f"关键错误: {e}")
+        print(f"手动备份数据并修复数据，路径：{self.storage_dir}")
+        sys.exit(1)
             
