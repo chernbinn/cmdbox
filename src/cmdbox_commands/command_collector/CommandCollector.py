@@ -35,8 +35,7 @@ class CommandCollector:
                     "description": description
                 }
 
-                with open(module_path, 'w') as f:
-                    json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
+                self._save_module(module_path, data)
                 print(f"命令已更新到模块 [{module}]")
                 return True
         
@@ -46,8 +45,7 @@ class CommandCollector:
         })
         
         # 使用json格式保存，支持注释
-        with open(module_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
+        self._save_module(module_path, data)
         print(f"命令已添加到模块 [{module}]")
     
     def modify_command(self, module: str, command_index: int = None, command: str = None, description: str = None):
@@ -74,8 +72,7 @@ class CommandCollector:
         if description is not None:
             data[command_index]['description'] = description
         
-        with open(module_path, 'w') as f:
-            json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
+        self._save_module(module_path, data)
         print(f"命令已更新到模块 [{module}]")
 
     def delete_command(self, module: str, command_index: int = None):
@@ -98,8 +95,7 @@ class CommandCollector:
         else:  # 删除指定命令
             try:
                 deleted = data.pop(command_index)
-                with open(module_path, 'w') as f:
-                    json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
+                self._save_module(module_path, data)
                 print(f"已从模块 [{module}] 删除命令: {deleted['command']}")
                 # 如果data为空，删除整个模块
                 if not data:
@@ -196,4 +192,12 @@ class CommandCollector:
         except Exception as e:
             print(f"加载模块 [{path}] 失败: {e}")
         return []
+
+    def _save_module(self, path: Path, data: List[Dict]):
+        """保存模块数据"""
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=CAHGE_CODING)
+        except Exception as e:
+            print(f"保存模块 [{path}] 失败: {e}")
             
