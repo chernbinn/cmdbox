@@ -62,7 +62,7 @@ def register(alias: str, command: str, is_gui: bool = False,
         if cmd_register.register(alias, command, is_gui, description, project_name, save_temp, force_install):
             click.echo(f"Register command '{alias}' success")
             if save_temp:
-                click.echo(f"中间临时文件路径：{cmd_register.parent / project_name}")
+                click.echo(f"中间临时文件路径：{cmd_register.cmd_register_toml.parent / project_name}")
         else:
             click.echo(f"Register command '{alias}' failed")
     except ValueError as e:

@@ -201,26 +201,34 @@ class PyProject:
 
     @staticmethod
     def get_actual_command(alias: str):
-        command = f'{alias} --command'
+        command = fr'{alias} --command'
         result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
+            click.echo(f"get_actual_command-command: {command}")
             click.echo(f"get_actual_command-result.stdout: {result.stdout}")
         if result.returncode != 0:
             return None
-        return result.stdout.strip()
+        return PyProject._handle_result_out(result.stdout)
 
     @staticmethod
     def get_project_name(alias: str):
-        command = f'{alias} --project-name'
+        command = fr'{alias} --project-name'
         result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
-            click.echo(f"get_actual_command-result.stdout: {result.stdout}")
+            click.echo(f"get_project_name-command: {command}")
+            click.echo(f"get_project_name-result.stdout: {result.stdout}")
         if result.returncode != 0:
             return None
-        return result.stdout.strip()
+        return PyProject._handle_result_out(result.stdout)
     
     def _file_content(self, command: Command):
         from cmdbox_commands.cmd_register.py_project.generator import generator_src
 
         return generator_src(command.command, command.description)
+
+    @staticmethod
+    def _handle_result_out(str):
+        if str:
+            return str.strip()
+        return None
 

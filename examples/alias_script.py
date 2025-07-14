@@ -84,7 +84,7 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
         click.echo(f"Excute command: {command}")
 
     if os.name == 'nt':
-        creation_flags = subprocess.CREATE_NO_WINDOW
+        creation_flags = 0# subprocess.CREATE_NO_WINDOW
     try:
         proc = subprocess.Popen(
                 ["C:\\Program Files\\Notepad++\\notepad++.exe"] + _args,

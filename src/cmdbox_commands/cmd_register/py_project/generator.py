@@ -77,6 +77,9 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
     if help:
             stderr_print(ctx.get_help())
     
+    creation_flags = 0
+    if os.name == 'nt':
+        creation_flags = 0# subprocess.CREATE_NO_WINDOW
     try:
         proc = subprocess.Popen(
                 [r"{command}"] + _args,
@@ -86,7 +89,7 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
                 stderr=subprocess.PIPE,
                 bufsize=1,
                 universal_newlines=True,
-                creationflags=0x08000000 if os.name == 'nt' else 0
+                creationflags=creation_flags
             )
         stderr_thread = None
         stdout_thread = None
@@ -106,10 +109,10 @@ def main(ctx, args, verbose, log_file, help, act_command, run_sync, _project_nam
                     target=read_stream, 
                     args=(proc.stdout, f, True), daemon=True)
             stdout_thread.start()
+        click.echo(f"Child process id: {{proc.pid}}")
         if run_sync:
             global _child_process
-            _child_process = proc
-            click.echo(f"Child process id: {{proc.pid}}")
+            _child_process = proc            
             if os.name == 'nt':
                 try:
                     while True:

@@ -17,7 +17,7 @@ class ScriptEntry(BaseModel):
             raise ValueError("cmd_type must be 'scripts' or 'gui-scripts'")
         return v
     
-    @field_validator('cmd_name')
+    #@field_validator('cmd_name')
     def validate_cmd_name(cls, v):
         # cmd_name不可以是已经存在的命令。执行“which cmd_name”，如果返回值不是空，则说明已经存在。
         """
