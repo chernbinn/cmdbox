@@ -75,29 +75,32 @@ class Base32V:
 
 # -------------------------------------------------------------
 
-def stderr_print(line):
-    print(line, file=sys.stdout, flush=True)
+def out_print(*args, file=sys.stdout, flush=True, **kw):
+    print(*args, file=file, flush=flush, **kw)
 
-def tee_stream(stream, output_file, is_stderr=False, buffer=None, verbose:Literal[0,1,2]=0):
+def tee_stream(stream, output_file, is_stderr=False, buffer=None):
     for line in iter(stream.readline, ''):
         if not line:
             break
-        if buffer and line.strip():
-            buffer.append(line.strip())
+        line = line.rstrip()        
         if output_file:
             output_file.write(line)
             output_file.flush()
-        if (is_stderr and verbose > 0) or verbose > 1:
-            stderr_print(line)
+        if buffer:
+            buffer.append(line)
+        if is_stderr:
+            #out_print(f"\033[31merror:\033[0m", line, file=sys.stderr)
+            out_print(line, file=sys.stderr)
+        else:
+            out_print(line)        
 
 class ChildResult(BaseModel):
     return_code: int
     stdout: str
     stderr: str
 
-def child_run(args, verbose:Literal[0,1,2]=0, log_file:Path = None):
-    stderr_print(f"Excute command: {args}")
-    
+def child_run(args, verbose:Literal[0,1,2]=2, log_file:Path = None):
+    out_print(f"Excute command: {args}")
     try:
         proc = subprocess.Popen(
                 args,
@@ -109,6 +112,7 @@ def child_run(args, verbose:Literal[0,1,2]=0, log_file:Path = None):
                 universal_newlines=True,
                 creationflags=0x08000000 if os.name == 'nt' else 0,
                 #encoding='utf-8'
+                cwd=os.getcwd()
             )
         stderr_thread = None
         stdout_thread = None
@@ -120,15 +124,21 @@ def child_run(args, verbose:Literal[0,1,2]=0, log_file:Path = None):
 
         result_stdout = []
         result_stderr = []
-        stderr_thread = threading.Thread(
-            target=tee_stream, 
-            args=(proc.stderr, f, True, result_stderr, verbose), daemon=True)
-        stderr_thread.start()
 
-        stdout_thread = threading.Thread(
+        stderr_thread = None
+        stdout_thread = None
+        if verbose > 0:
+            stderr_thread = threading.Thread(
                 target=tee_stream, 
-                args=(proc.stdout, f, False, result_stdout, verbose), daemon=True)
-        stdout_thread.start()
+                args=(proc.stderr, f, True, result_stderr), daemon=True)
+            stderr_thread.start()
+
+        if verbose > 1:
+            stdout_thread = threading.Thread(
+                    target=tee_stream, 
+                    args=(proc.stdout, f, False, result_stdout), daemon=True)
+            stdout_thread.start()
+
         exit_code = proc.wait()
         if stderr_thread:
             stderr_thread.join()
@@ -136,13 +146,14 @@ def child_run(args, verbose:Literal[0,1,2]=0, log_file:Path = None):
             stdout_thread.join()
         if f:
             f.close()
+
         return ChildResult(
             return_code=exit_code, 
-            stdout="".join(result_stdout), 
+            stdout="".join(result_stdout),
             stderr="".join(result_stderr)
         )    
     except Exception as e:
-        stderr_print(f"Excute command '{args}' failed: {e}")
+        out_print(f"Excute command '{args}' failed: {e}")
         return ChildResult(
             return_code=1, 
             stdout="", 

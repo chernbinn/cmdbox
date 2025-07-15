@@ -69,6 +69,7 @@ class CmdResiter:
                 )
             if not commands:
                 PyProject.uninstall(project_name)
+                PyProject.clean_by_path(self.cmd_register_toml.parent / project_name)
                 return True
             project = PyProject(
                 project_path = self.cmd_register_toml.parent / project_name,
@@ -155,6 +156,7 @@ class CmdResiter:
             res = self._update_project(project_name)
         else:
             res = PyProject.uninstall(project_name)
+            PyProject.clean_by_path(self.cmd_register_toml.parent / project_name)
         return res
     
     def list(self, show_project_name = None)->None:
@@ -302,6 +304,7 @@ class CmdResiter:
             if res:
                 self._del_project(project_name)
                 self._save()
+            PyProject.clean_by_path(self.cmd_register_toml.parent / project_name)
             return res
         click.echo("取消删除")
         return False

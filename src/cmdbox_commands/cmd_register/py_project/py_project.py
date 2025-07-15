@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import click
+from pathlib import Path
 from functools import lru_cache
 from typing import Union, Optional
 from pydantic import BaseModel, field_validator
@@ -18,9 +19,9 @@ class Command(BaseModel):
         return f'{self.alias}_{"gui_" if self.is_gui else ""}cli.py'
 
 class PyProject:
-    def __init__(self, project_path: str, project_name: str):
+    def __init__(self, project_path: Union[str, Path], project_name: str):
         self.project_name = project_name
-        self.project_path: str = project_path
+        self.project_path: Path = Path(project_path)
         self.pyproject_toml: PyprojectToml = None
 
     def init(self, commands: list[Command]):
@@ -102,7 +103,19 @@ class PyProject:
 
     def clean(self):
         # 删除项目目录
-        shutil.rmtree(self.project_path)
+        try:
+            if self.project_path.exists():
+                shutil.rmtree(self.project_path)
+        except:
+            pass
+    
+    @staticmethod
+    def clean_by_path(path: Union[str, Path]):
+        try:
+            if Path(path).exists():
+                shutil.rmtree(path)
+        except:
+            pass
 
     def _gernerate_src(self, commands: list[Command]):
         for command in commands:
@@ -201,25 +214,27 @@ class PyProject:
 
     @staticmethod
     def get_actual_command(alias: str):
-        command = fr'{alias} --command'
+        command = fr'{alias} --icommand'
         result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
             click.echo(f"get_actual_command-command: {command}")
             click.echo(f"get_actual_command-result.stdout: {result.stdout}")
+            click.echo(f"get_actual_command-result.stderr: {result.stderr}")
         if result.returncode != 0:
             return None
-        return PyProject._handle_result_out(result.stdout)
+        return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}")
 
     @staticmethod
     def get_project_name(alias: str):
-        command = fr'{alias} --project-name'
+        command = fr'{alias} --oproject-name'
         result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
             click.echo(f"get_project_name-command: {command}")
             click.echo(f"get_project_name-result.stdout: {result.stdout}")
+            click.echo(f"get_project_name-result.stderr: {result.stderr}")
         if result.returncode != 0:
             return None
-        return PyProject._handle_result_out(result.stdout)
+        return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}")
     
     def _file_content(self, command: Command):
         from cmdbox_commands.cmd_register.py_project.generator import generator_src
