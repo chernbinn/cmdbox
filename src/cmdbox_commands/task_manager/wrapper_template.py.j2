@@ -4,31 +4,44 @@ import sys
 import json
 import time
 import threading
-from datetime import datetime
 import subprocess
+import chardet
+from datetime import datetime
 
 start_time = datetime.now().isoformat()
 pid = os.getpid()
+_child_process = None
 
-def stderr_print(line):
-    """
-    if os.name == 'nt':
-        try:
-            line_str = line.decode('gbk', errors='replace').rstrip('\n')
-        except UnicodeDecodeError:
-            line_str = line.decode('utf-8', errors='replace').rstrip('\n')
-    else:
-        line_str = line.decode('utf-8', errors='replace').rstrip('\n')
-    print(line_str, file=sys.stderr)
-    """
-    print(line, file=sys.stderr)
+def str_decode(line_bytes):
+    result = chardet.detect(line_bytes)
+    encoding = result['encoding']
+    line_str = None
+    try:
+        line_str = line_bytes.decode(encoding).rstrip()
+    except:
+        if os.name == 'nt':
+            try:
+                line_str = line_bytes.decode('gbk').rstrip()
+            except:
+                pass
+    if line_str is None:
+        line_str = line_bytes.decode('utf-8', errors='replace').rstrip()
+    return line_str
+
+def stderr_print(line):    
+    print(line, file=sys.stderr, flush=True)
 
 def read_stream(stream, output_file, is_stderr=False):
-    for line in iter(stream.readline, ''):
-        if not line:
+    for line_bytes in iter(stream.readline, b''):
+        if not line_bytes:
             break
-        output_file.write(line)
+
+        # 解码用于打印或处理
+        line = str_decode(line_bytes)
+
+        output_file.write(f"{line}\n")
         output_file.flush()
+        
         if is_stderr and {% if tee_out_error %}True{% else %}False{% endif %}:
             stderr_print(line)
 
@@ -41,7 +54,7 @@ def tee_output(output_file, line, stream):
     else:
         #line_str = line.decode('utf-8', errors='replace').rstrip('\n')
         #print(line_str, file=stream)
-        print(line, file=stream)
+        print(line, file=stream, flush=True)
 
 def update_status(status):
     try:
@@ -65,36 +78,59 @@ def update_status(status):
         # json.dump(db, f, indent=2, ensure_ascii=False)
         json.dump(db, f, indent=2)
 
+def sigint_handler():
+    global _child_process
+
+    if _child_process and _child_process.poll() is None:
+        # Terminate the process group on Unix-like systems
+        if os.name == 'posix':
+            os.killpg(os.getpgid(_child_process.pid), signal.SIGTERM)
+        else:
+            # On Windows, use taskkill to ensure the process tree is terminated
+            subprocess.call(['taskkill', '/F', '/T', '/PID', str(_child_process.pid)])
+
 try:
     while True:
         with open({{ log_file|tojson }}, 'a', encoding='utf-8') as f:
             f.write(f'command: {{ command|tojson }}\n\n')
             f.flush()
+            
             proc = subprocess.Popen(
                 {{ command|tojson }},
                 shell=True,
                 stdin=subprocess.DEVNULL,
-                stdout=f,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=1,
-                universal_newlines=True,
+                bufsize=0,
+                universal_newlines=False,
                 creationflags=0x08000000 if os.name == 'nt' else 0,
                 cwd=os.getcwd()
             )
+
+            stdout_thread = threading.Thread(
+                target=read_stream, 
+                args=(proc.stdout, f, False), daemon=True)
+            stdout_thread.start()
 
             stderr_thread = threading.Thread(
                 target=read_stream, 
                 args=(proc.stderr, f, True), daemon=True)
             stderr_thread.start()
 
+            _child_process = proc
             exit_code = proc.wait()
             stderr_thread.join()
-            if exit_code == 0 or not {% if until_succeed %}True{% else %}False{% endif %}:
+            if exit_code == 0:
                 tee_output(f, f"Task(pid:{pid}) completed, exit_code: {exit_code}\n\n", sys.stderr)
                 update_status("completed")
                 break
+            elif not {% if until_succeed %}True{% else %}False{% endif %}:
+                tee_output(f, f"Task(pid:{pid}) failed, exit_code: {exit_code}\n\n", sys.stderr)
+                update_status("failed")
+                break
             time.sleep({{interval}})
 except Exception as e:
-    with open({{ log_file|tojson }}, 'ab') as f:
-        tee_output(f, f"Task(pid:{pid}) exception Error: {e}\n".encode('utf-8'), sys.stderr)
+    sigint_handler()
+    with open({{ log_file|tojson }}, 'a', encoding='utf-8') as f:
+        tee_output(f, f"Task(pid:{pid}) exception Error: {e}\n", sys.stderr)
     update_status("failed")
