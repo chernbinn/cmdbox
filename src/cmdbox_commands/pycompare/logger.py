@@ -36,6 +36,8 @@ class LoggerConfig:
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
+            if config.get('log_dir') and not os.path.isabs(config['log_dir']):
+                config['log_dir'] = os.path.join(_default_config_path, config['log_dir'])
             return {**cls.DEFAULT_CONFIG, **config}
         except json.JSONDecodeError as e:
             logging.warning(f"配置文件 {config_file} 损坏，重建默认配置")

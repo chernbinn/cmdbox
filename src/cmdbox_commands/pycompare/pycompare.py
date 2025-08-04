@@ -4,6 +4,7 @@ import difflib
 import re
 import os, time, sys
 import uuid
+import click
 import psutil
 import numpy as np
 import concurrent.futures
@@ -1743,8 +1744,11 @@ def test(context):
                     context['textflines'], context['tagflines'])
     update_line_numbers(context['textarea'], context['textlines'], context['taglines'])
 
+@click.command()
+@click.help_option('-h', '--help')
 def cli():
     #set_start_method('spawn', force=True)  # 解决Windows兼容性问题
+
     root = Tk()
     context = main(root)
 
