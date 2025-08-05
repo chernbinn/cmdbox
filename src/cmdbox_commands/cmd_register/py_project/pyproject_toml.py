@@ -104,7 +104,7 @@ build-backend = "setuptools.build_meta"
 name = "{self.project_name}"
 version = "{self.projec_version}"
 dependencies = [
-    "click>=8.0",
+    "click>=8.0"
 ]
 requires-python = ">={python_version}"
 

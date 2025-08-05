@@ -43,7 +43,7 @@ def main(ctx, show_version, debug, show_path):
 @main.command("add")
 @click.argument('alias')
 @click.argument('command')
-#@click.option('-g', '--gui', 'is_gui', is_flag=True, help='有图形界面工具')
+@click.option('-g', '--gui', 'is_gui', is_flag=True, help='有图形界面工具')
 @click.option('--save-temp', 'save_temp', is_flag=True, help='保存中间临时文件')
 #@click.option('--force', 'force_install', is_flag=True, help='强制安装命令，如果命令存在则被覆盖')
 @click.option('-d', '--description', 'description', default='', help='命令描述')

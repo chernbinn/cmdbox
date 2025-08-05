@@ -142,7 +142,6 @@ class CmdResiter:
                     click.echo(f'Alias "{alias}" is system command, can not be removed')
                     return True
                 """
-
         if alias in self.cmd_register:            
             if self.cmd_register.get(alias, {}).get('project_name') != project_name:
                 click.echo(f'Alias "{alias}" dose not exist{f"in {project_name}" if project_name else ""}')
@@ -151,7 +150,9 @@ class CmdResiter:
             self._save()
 
         if not self._check_installed(alias):
+            click.echo(f'Alias "{alias}" is not installed')
             return True
+
         if self._check_exist(project_name):            
             res = self._update_project(project_name)
         else:

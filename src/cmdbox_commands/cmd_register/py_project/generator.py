@@ -1,4 +1,4 @@
-def generator_src(command: str, description: str):
+def generator_src(command: str, description: str, is_gui: bool):
     return fr'''      
 import sys,os
 import click
@@ -29,13 +29,39 @@ def sigint_handler(sig, frame):
             subprocess.call(['taskkill', '/F', '/T', '/PID', str(_child_process.pid)])
     sys.exit(0)
 
+def str_decode(line_bytes):
+    # 优先尝试系统默认编码（Windows为gbk，Linux为utf-8）
+    default_encoding = 'gbk' if os.name == 'nt' else 'utf-8'
+    encodings_to_try = [
+        default_encoding,
+        'utf-8',
+        'utf-8-sig',
+        'ascii',
+        'gb18030',  # 兼容gbk的更广编码
+        'latin1'    # 不会报错的最后兜底
+    ]
+    
+    for encoding in encodings_to_try:
+        try:
+            line_str = line_bytes.decode(encoding).rstrip()
+            if line_str: 
+                return line_str
+        except Exception:
+            continue
+    
+    # 最终兜底方案：替换不可解码字符
+    return line_bytes.decode('utf-8', errors='replace').rstrip()
+
 def read_stream(stream, output_file, is_stderr):
-    for line in iter(stream.readline, ''):
-        if not line:
+    for line_bytes in iter(stream.readline, b''):
+        if not line_bytes:
             break
-        line = line.rstrip()
+
+        # 解码用于打印或处理
+        line = str_decode(line_bytes)
+
         if output_file:
-            output_file.write(line)
+            output_file.write(f"{{line}}\n")
             output_file.flush()
         if is_stderr:
             out_print(f"\033[31merror:\033[0m", line, file=sys.stderr)
@@ -70,14 +96,14 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
     INNER_ARGS    内部命令的选项，使用--ihelp查看。如果内部命令不支持任何选项，该参数无效。
     """
     signal.signal(signal.SIGINT, sigint_handler)
-    out_print(f"执行目录：{{os.getcwd()}}")
+    #out_print(f"执行目录：{{os.getcwd()}}")
 
     command = r"{command}"
     if act_command:
-        out_print(command)
+        out_print("ActCommand: {command}")
         return
     if _project_name:
-        out_print(get_package_name())
+        out_print("PackageName: " + get_package_name())
         return
     if ohelp:
         out_print("")
@@ -98,16 +124,27 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
     if os.name == 'nt':
         creation_flags = 0# subprocess.CREATE_NO_WINDOW
     try:
+        env = {{
+            **os.environ,  # 继承当前环境
+            # 关键变量强制UTF-8
+            'PYTHONIOENCODING': 'utf-8',
+            'LC_ALL': 'en_US.UTF-8',
+            'LANG': 'en_US.UTF-8',
+            'LC_CTYPE': 'UTF-8',
+            # Windows特定
+            'CHCP': '65001'  # Windows代码页65001对应UTF-8
+        }}
         proc = subprocess.Popen(
                 " ".join([r"{command}"] + _args),
                 shell=True,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=1,
-                universal_newlines=True,
+                bufsize=0,
+                universal_newlines=False,
                 creationflags=creation_flags,
-                cwd=os.getcwd()
+                cwd=os.getcwd(),
+                env=env
             )
         stderr_thread = None
         stdout_thread = None
@@ -121,13 +158,13 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
                 target=read_stream, 
                 args=(proc.stderr, f, True), daemon=True)
         stderr_thread.start()
-        if verbose or ihelp:
+        if not {is_gui} or verbose or ihelp:
             stdout_thread = threading.Thread(
                     target=read_stream, 
                     args=(proc.stdout, f, False), daemon=True)
             stdout_thread.start()
         
-        if run_sync or ihelp or verbose or log_file:
+        if not {is_gui} or run_sync or ihelp or verbose or log_file:
             global _child_process
             _child_process = proc            
             if os.name == 'nt':

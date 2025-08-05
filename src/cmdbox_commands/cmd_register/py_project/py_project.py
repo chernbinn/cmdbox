@@ -32,14 +32,7 @@ class PyProject:
 
         click.echo(f"init src files")
         self._gernerate_src(commands)
-        """
-        self.pyproject_toml = PyprojectToml(
-            project_name=self.project_name,
-            scripts=[]
-        )
-        self.pyproject_toml.save_pyprojectToml(self.project_path/ 'pyproject.toml')
-        self._install_dev()
-        """
+
         click.echo(f"init pyproject.toml")
         scripts = []
         for command in commands:
@@ -61,10 +54,7 @@ class PyProject:
         # 先卸载旧版本
         click.echo(f"uninstall old tools:'{self.project_name}'")
         subprocess.run(f'pipx uninstall {self.project_name}', 
-                    shell=True, 
-                    encoding='utf-8',
-                    capture_output=True, 
-                    text=True)
+                    shell=True)
         # 安装新版本
         click.echo(f"install new tools:'{self.project_name}'")
         """
@@ -79,7 +69,7 @@ class PyProject:
             click.echo(f"install '{self.project_path}' success")
         """
         result = child_run(f'pipx install -f {self.project_path}', 2)
-        if result.return_code != 0:
+        if result.returncode != 0:
             raise ValueError(f"install '{self.project_path}' failed")
         else:
             click.echo(f"install '{self.project_path}' success")
@@ -87,12 +77,12 @@ class PyProject:
     @staticmethod
     def uninstall(project_name: str)->bool:
         # 检查是否存在
-        result = subprocess.run(f'pipx runpip {project_name}', shell=True, capture_output=True, text=True)
+        result = child_run(f'pipx runpip {project_name} show -f {project_name}', 2)
         if result.returncode != 0:
             click.echo(f"project '{project_name}' not exists")
-            return False
+            return True
 
-        result = subprocess.run(f'pipx uninstall {project_name}', shell=True, capture_output=True, text=True)
+        result = child_run(f'pipx uninstall {project_name}', 1)
         if result.returncode != 0:
             #raise ValueError(f"uninstall '{project_name}' failed")
             click.echo(f"uninstall '{project_name}' failed")
@@ -121,25 +111,6 @@ class PyProject:
         for command in commands:
             file_name = command.src_file_name()
             (self.src_path/ file_name).write_text(self._file_content(command), encoding='utf-8')
-        
-    def _install_dev(self):
-        # 如果虚拟环境不存在，创建虚拟环境
-        virtual_env = self.project_path/ '.venv'
-        if not virtual_env.exists():
-            subprocess.run(f'python -m venv {virtual_env}', shell=True, capture_output=True, text=True)
-        # 激活虚拟环境及安装
-        activate_cmd = f'{virtual_env}/Scripts/activate'
-        result = subprocess.run(activate_cmd, shell=True, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise ValueError(f"activate virtual env '{virtual_env}' failed")
-
-        # 安装开发版本
-        click.echo(f'pip install -e --force-reinstall {self.project_path}')
-        result = subprocess.run(f'pip install -e --force-reinstall {self.project_path}', shell=True, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise ValueError(f"install dev '{self.project_path}' failed")
-        else:
-            click.echo(f"install dev '{self.project_path}' success")
 
     @staticmethod
     def is_installed(alias: str, project_name: str = None) -> Union[bool, Optional[str]]:
@@ -151,7 +122,8 @@ class PyProject:
         command = None
         if project_name:
             command = f'pipx runpip {project_name} show -f {project_name}'
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+            result = child_run(command)
+            #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
             if result.returncode != 0:
                 return False, None
             if alias:
@@ -162,8 +134,12 @@ class PyProject:
             return False, None
         else:
             command = f'pipx list --short'
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
-            result.check_returncode()
+            result = child_run(command)
+            #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+            #result.check_returncode()
+            if result.returncode != 0:
+                click.echo(f"is_installed, command '{command}' failed\n{result.stderr}")
+                raise ValueError(f"is_installed, command '{command}' failed")
             for line in result.stdout.splitlines():
                 project = line.split()[0]
                 is_installed, project_name = PyProject.is_installed(alias, project)
@@ -179,7 +155,8 @@ class PyProject:
     @lru_cache
     def get_project_commands(project_name: str):
         command = f'pipx runpip {project_name} show -f {project_name}'
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+        result = child_run(command)
+        #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if result.returncode != 0:
             return []
         commands = []
@@ -195,9 +172,12 @@ class PyProject:
     @staticmethod
     def get_installed_projects():
         command = f'pipx list --short'
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
-        result.check_returncode()
-        #click.echo(f"result.stdout: {result.stdout}")
+        result = child_run(command)
+        if result.returncode != 0:
+            click.echo(f"get_installed_projects, command '{command}' failed\n{result.stderr}")
+            raise ValueError(f"get_installed_projects, command '{command}' failed")
+        if is_debug():
+            click.echo(f"get_installed_projects-result.stdout:\n{result.stdout}")
         projects = []
         for project in result.stdout.splitlines():
             _version = project.split()[1]
@@ -215,35 +195,37 @@ class PyProject:
     @staticmethod
     def get_actual_command(alias: str):
         command = fr'{alias} --icommand'
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+        result = child_run(command, 2)
+        # result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
             click.echo(f"get_actual_command-command: {command}")
-            click.echo(f"get_actual_command-result.stdout: {result.stdout}")
-            click.echo(f"get_actual_command-result.stderr: {result.stderr}")
+            click.echo(f"get_actual_command-result.stdout: \n{result.stdout}")
+            click.echo(f"get_actual_command-result.stderr: \n{result.stderr}")
         if result.returncode != 0:
             return None
-        return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}")
+        return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}", "ActCommand:")
 
     @staticmethod
     def get_project_name(alias: str):
         command = fr'{alias} --oproject-name'
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
+        result = child_run(command)
+        #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
             click.echo(f"get_project_name-command: {command}")
-            click.echo(f"get_project_name-result.stdout: {result.stdout}")
-            click.echo(f"get_project_name-result.stderr: {result.stderr}")
+            click.echo(f"get_project_name-result.stdout: \n{result.stdout}")
+            click.echo(f"get_project_name-result.stderr: \n{result.stderr}")
         if result.returncode != 0:
             return None
-        return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}")
+        return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}", "PackageName:")
     
     def _file_content(self, command: Command):
         from cmdbox_commands.cmd_register.py_project.generator import generator_src
 
-        return generator_src(command.command, command.description)
+        return generator_src(command.command, command.description, command.is_gui)
 
     @staticmethod
-    def _handle_result_out(str):
-        if str:
-            return str.strip()
+    def _handle_result_out(str, key):
+        if str and key in str:
+            return str.split(key)[1].strip()
         return None
 

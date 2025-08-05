@@ -7,6 +7,8 @@ import shutil
 from typing import Union
 from pathlib import Path
 from typing import Literal
+from pydantic import BaseModel
+from queue import Queue
 
 def check_command_exists(cmd: Union[str, os.PathLike]) -> bool:
 
@@ -146,7 +148,8 @@ class ChildResult:
         self.stdout = stdout
         self.stderr = stderr
 
-def child_run(args, verbose:Literal[0,1,2]=0, log_file:Path = None):
+def child_run(args, verbose:Literal[0,1,2]=2, log_file:Path = None):
+    out_print(f"--Excute command: {args}")
     env = {
         **os.environ,  # 继承当前环境
         # 关键变量强制UTF-8
