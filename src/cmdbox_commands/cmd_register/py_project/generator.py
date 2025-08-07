@@ -1,3 +1,9 @@
+def __gernerate_syncrun_option(is_gui: bool) -> str:
+    if is_gui:
+        return """@click.option('--irun-sync', 'run_sync', is_flag=True, 
+            help="同步运行内部命令。阻塞命令行直到内部命令执行完成，比较耗资源。未说明同步执行，默认后台执行内部命令")"""
+    return ""
+
 def generator_src(command: str, description: str, is_gui: bool):
     return fr'''      
 import sys,os
@@ -6,7 +12,6 @@ import subprocess
 import threading
 import signal
 import time
-import shlex
 from pathlib import Path
 
 _child_process = None
@@ -86,17 +91,37 @@ def _inner_exit(ctx, param, value):
     if value:
         sigint_handler(signal.SIGINT, None)
 
+def _standardize_command(command: list) -> str:
+    if not isinstance(command, list) or not command:
+        raise ValueError("command must be a non-empty list")
+    # 非彻底解决问题的patch,至少解决cmd /c cmd的命令，cmd是一个单命令，不可以是组合命令
+    first_cmd = command[0].lstrip()
+    seqs = first_cmd.split()
+    if first_cmd.startswith("cmd") and len(seqs) > 2:
+        command = ["cmd", "/c"] + seqs[2:] + command[1:]
+    #
+    if os.name == 'nt':
+        from subprocess import list2cmdline
+        # Windows：使用 list2cmdline 处理整个命令+参数
+        command_str = list2cmdline(command)
+    else:
+        import shlex
+        # 非 Windows：使用 shlex.join（Python 3.8+）或手动拼接
+        command_str = shlex.join(command) if hasattr(shlex, 'join') else " ".join(shlex.quote(arg) for arg in command)
+    return command_str
+
 @click.command(context_settings={{"ignore_unknown_options": True}})
 @click.pass_context
 @click.option("-ov", 'verbose', is_flag=True, show_default=True, help="同步执行内部命令，输出命令执行信息")
 @click.option("--olog-file", 'log_file', type=click.Path(), help="同步执行内部命令，并输出log到文件")
-@click.option('--irun-sync', 'run_sync', is_flag=True, help="同步运行内部命令。阻塞命令行直到内部命令执行完成，比较耗资源。未说明同步执行，默认后台执行内部命令")
+@click.option('--irun-sync', 'run_sync', is_flag=True, 
+            help="同步运行内部命令。阻塞命令行直到内部命令执行完成，比较耗资源。未说明同步执行，默认后台执行内部命令")
 @click.option("--icommand", 'act_command', is_flag=True, help="获取alias的内部命令")
 @click.option("--oproject-name", '_project_name', is_flag=True, help="获取命令所在组名")
-@click.option('-h', '--help', 'ohelp', is_flag=True, help="显示帮助信息。不会执行内部命令")
+@click.option('-oh','--help', 'ohelp', is_flag=True, help="显示帮助信息。不会执行内部命令")
 @click.option("--ihelp", "ihelp", is_flag=True, help="查看内部命令帮助信息，内部命令的--help")
 #@click.option("--iexit", "iexit", callback=_inner_exit,
-#    is_eager=True, expose_value=False, is_flag=True, help="退出正在执行的内部命令，此选项单独使用")
+#    is_eager=True, expose_value=False, is_flag=True, help="退出正在后台执行的内部命令")
 @click.argument("args", nargs=-1, metavar="INNER_ARGS")
 def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _project_name):
     """{description}
@@ -109,13 +134,15 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
     #out_print(f"执行目录：{{os.getcwd()}}")
 
     command = r"{command}"
+    """
     # Windows 特殊处理：确保路径被双引号包裹
     if os.name == 'nt' and ' ' in command and not (command.startswith('"') and command.endswith('"')):
-        print_command = f'"{command}"'
+        print_command = f'"{{command}}"'  # 关键处理，在windows下shlex.quote无作用
     else:
         print_command = shlex.quote(command)
+    """
     if act_command:
-        out_print("ActCommand: " + {{print_command}})
+        out_print("ActCommand: " + _standardize_command([command]))
         return
     if _project_name:
         out_print("PackageName: " + get_package_name())
@@ -132,7 +159,7 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
     _args = [item for item in args]
     if ihelp:
         _args.extend(['--help'])
-    command_str = " ".join([print_command] + _args)
+    command_str = _standardize_command([command] + _args)
     out_print(f"Excute command: {{command_str}}\n")
     
     creation_flags = 0
