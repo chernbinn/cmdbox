@@ -6,6 +6,7 @@ import subprocess
 import threading
 import signal
 import time
+import shlex
 from pathlib import Path
 
 _child_process = None
@@ -14,8 +15,7 @@ _should_exit = False
 def out_print(*args, file=sys.stdout, flush=True, **kw):
     print(*args, file=file, flush=flush, **kw)
 
-def sigint_handler(sig, frame):
-    out_print("\nCtrl+C pressed, exiting...")
+def sigint_handler(sig, frame, ctrl_c: bool=True):    
     global _child_process, _should_exit
 
     _should_exit = True
@@ -24,10 +24,12 @@ def sigint_handler(sig, frame):
         if os.name == 'posix':
             os.killpg(os.getpgid(_child_process.pid), signal.SIGTERM)
         else:
-            out_print(f"----Child process id: {{_child_process.pid}}")
+            # out_print(f"Child process id: {{_child_process.pid}}")
             # On Windows, use taskkill to ensure the process tree is terminated
             subprocess.call(['taskkill', '/F', '/T', '/PID', str(_child_process.pid)])
-    sys.exit(0)
+    if ctrl_c:
+        out_print("\nCtrl+C pressed, exiting...")
+        sys.exit(0)
 
 def str_decode(line_bytes):
     # 优先尝试系统默认编码（Windows为gbk，Linux为utf-8）
@@ -53,20 +55,28 @@ def str_decode(line_bytes):
     return line_bytes.decode('utf-8', errors='replace').rstrip()
 
 def read_stream(stream, output_file, is_stderr):
+    def record_line(line: str):
+        if is_stderr:
+            #out_print(f"\033[31merror:\033[0m", line, file=sys.stderr)
+            out_print(line, file=sys.stderr)
+        else:
+            out_print(line)
+
+        if output_file:
+            newline = (line + "\n") if line.endswith("\n") else line
+            output_file.write(f"{{newline}}")
+            output_file.flush()
+
     for line_bytes in iter(stream.readline, b''):
         if not line_bytes:
             break
-
-        # 解码用于打印或处理
-        line = str_decode(line_bytes)
-
-        if output_file:
-            output_file.write(f"{{line}}\n")
-            output_file.flush()
-        if is_stderr:
-            out_print(f"\033[31merror:\033[0m", line, file=sys.stderr)
-        else:
-            out_print(line)
+        line = str_decode(line_bytes)        
+        record_line(line)
+        
+    remaining = stream.read()
+    if remaining:
+        last_line = str_decode(remaining)
+        record_line(last_line)
 
 def get_package_name():
     # 获取当前代码的包名
@@ -99,8 +109,13 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
     #out_print(f"执行目录：{{os.getcwd()}}")
 
     command = r"{command}"
+    # Windows 特殊处理：确保路径被双引号包裹
+    if os.name == 'nt' and ' ' in command and not (command.startswith('"') and command.endswith('"')):
+        print_command = f'"{command}"'
+    else:
+        print_command = shlex.quote(command)
     if act_command:
-        out_print("ActCommand: {command}")
+        out_print("ActCommand: " + {{print_command}})
         return
     if _project_name:
         out_print("PackageName: " + get_package_name())
@@ -117,12 +132,12 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
     _args = [item for item in args]
     if ihelp:
         _args.extend(['--help'])
-    command = " ".join([command] + _args)
-    out_print(f"Excute command: {{command}}\n")    
+    command_str = " ".join([print_command] + _args)
+    out_print(f"Excute command: {{command_str}}\n")
     
     creation_flags = 0
     if os.name == 'nt':
-        creation_flags = 0# subprocess.CREATE_NO_WINDOW
+        creation_flags = subprocess.CREATE_NO_WINDOW
     try:
         env = {{
             **os.environ,  # 继承当前环境
@@ -135,7 +150,7 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
             'CHCP': '65001'  # Windows代码页65001对应UTF-8
         }}
         proc = subprocess.Popen(
-                " ".join([r"{command}"] + _args),
+                command_str,
                 shell=True,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
@@ -189,7 +204,8 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
         if f:
             f.close()
     except Exception as e:
-        out_print(f"Excute command '{{command}}' failed: {{e}}")
+        sigint_handler(signal.SIGINT, None, False)
+        out_print(f"Excute command '{{command_str}}' failed: {{e}}")
         out_print(ctx.get_help())
         sys.exit(1)
 

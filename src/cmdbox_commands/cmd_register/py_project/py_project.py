@@ -38,7 +38,8 @@ class PyProject:
         for command in commands:
             scripts.append(ScriptEntry(
                 cmd_name=command.alias,
-                cmd_type='gui-scripts' if command.is_gui else 'scripts',
+                #cmd_type='gui-scripts' if command.is_gui else 'scripts',
+                cmd_type='scripts',
                 cmd_entry=f'{self.project_name}.{command.src_file_name()[:-3]}:main'
             ))
 
@@ -77,14 +78,13 @@ class PyProject:
     @staticmethod
     def uninstall(project_name: str)->bool:
         # 检查是否存在
-        result = child_run(f'pipx runpip {project_name} show -f {project_name}', 2)
+        result = child_run(f'pipx runpip {project_name} show -f {project_name}')
         if result.returncode != 0:
             click.echo(f"project '{project_name}' not exists")
             return True
 
         result = child_run(f'pipx uninstall {project_name}', 1)
         if result.returncode != 0:
-            #raise ValueError(f"uninstall '{project_name}' failed")
             click.echo(f"uninstall '{project_name}' failed")
             return False
         else:
@@ -123,7 +123,6 @@ class PyProject:
         if project_name:
             command = f'pipx runpip {project_name} show -f {project_name}'
             result = child_run(command)
-            #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
             if result.returncode != 0:
                 return False, None
             if alias:
@@ -135,8 +134,6 @@ class PyProject:
         else:
             command = f'pipx list --short'
             result = child_run(command)
-            #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
-            #result.check_returncode()
             if result.returncode != 0:
                 click.echo(f"is_installed, command '{command}' failed\n{result.stderr}")
                 raise ValueError(f"is_installed, command '{command}' failed")
@@ -147,7 +144,6 @@ class PyProject:
                     return True, project_name
             
             if check_command_exists(alias):
-            # if shutil.which(alias):
                 return True, "__sys_system__"
             return False, None
 
@@ -156,7 +152,6 @@ class PyProject:
     def get_project_commands(project_name: str):
         command = f'pipx runpip {project_name} show -f {project_name}'
         result = child_run(command)
-        #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if result.returncode != 0:
             return []
         commands = []
@@ -196,7 +191,6 @@ class PyProject:
     def get_actual_command(alias: str):
         command = fr'{alias} --icommand'
         result = child_run(command, 2)
-        # result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
             click.echo(f"get_actual_command-command: {command}")
             click.echo(f"get_actual_command-result.stdout: \n{result.stdout}")
@@ -209,7 +203,6 @@ class PyProject:
     def get_project_name(alias: str):
         command = fr'{alias} --oproject-name'
         result = child_run(command)
-        #result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='utf-8')
         if is_debug():
             click.echo(f"get_project_name-command: {command}")
             click.echo(f"get_project_name-result.stdout: \n{result.stdout}")
