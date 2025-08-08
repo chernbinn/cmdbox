@@ -348,9 +348,11 @@ class CmdResiter:
         return sorted(set([cmd['project_name'] for cmd in self.cmd_register.values()]))
 
     def _del_project(self, project_name: str):
-        for alias, cmd in self.cmd_register.items():
-            if cmd['project_name'] != project_name:
-                continue
+        to_delete = [
+            alias for alias, cmd in self.cmd_register.items()
+            if cmd.get('project_name') == project_name
+        ]
+        for alias in to_delete:
             del self.cmd_register[alias]
     
     def _save(self):

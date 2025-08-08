@@ -83,9 +83,9 @@ def remove(alias: str = None, project_name:str = None):
         return
     try:
         cmd_register.remove(alias, project_name)
-        click.echo(f"删除自定义命令成功: {alias}")
+        click.echo(f"删除自定义命令或命令集成功: {alias if alias else project_name}")
     except ValueError as e:
-        click.echo(f"删除自定义命令失败: {str(e)}")
+        click.echo(f"删除自定义命令或命令集失败: {str(e)}")
         if is_debug():
             import traceback
             traceback.print_exc()

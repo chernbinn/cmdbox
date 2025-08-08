@@ -1,10 +1,120 @@
-def __gernerate_syncrun_option(is_gui: bool) -> str:
-    if is_gui:
-        return """@click.option('--irun-sync', 'run_sync', is_flag=True, 
-            help="同步运行内部命令。阻塞命令行直到内部命令执行完成，比较耗资源。未说明同步执行，默认后台执行内部命令")"""
-    return ""
+from typing import Optional, Callable, Any
+
+class ClickOption:
+    @staticmethod
+    def _generic_callback(ctx, param, value):
+        if value:
+            # 这里实现一个通用的option回调函数
+            ctx.obj[param.name] = value
+
+    def generate_option(
+        self,
+        name: str,
+        param_name: str,
+        help: str,
+        short: Optional[str] = None,
+        opt_type: Optional[Callable] = None,        
+        is_flag: Optional[bool] = None,
+        default: Optional[Any] = None,
+        show_default: Optional[bool] = None,
+        required: Optional[bool] = None,
+        is_eager: bool = True,
+        expose_value: bool = False,
+        enabled: bool = True
+    ) -> str:
+        """通用选项生成器
+        
+        Args:
+            name: 选项名称 (e.g. '--irun-sync')
+            param_name: 参数名称 (e.g. 'run_sync')
+            help: 帮助文本
+            short: 短选项名称 (e.g. '-s')
+            opt_type: 参数类型 (e.g. click.Path())
+            is_flag: 是否作为标志选项
+            default: 默认值
+            show_default: 是否显示默认值
+            required: 是否必须
+            is_eager: 是否优先处理
+            expose_value: 是否暴露值
+            enabled: 是否启用该选项
+        """
+        if not enabled:
+            return ""
+            
+        callback_ref = f"callback={self.__class__.__name__}._generic_callback"
+        
+        parts = [
+            f"'{name}', '{param_name}'",
+            f"is_eager={is_eager}",
+            f"expose_value={expose_value}",
+            callback_ref,
+        ]
+        insert_index = 0
+        if short:
+            parts.insert(insert_index, f"'{short}'")
+            insert_index += 1
+        
+        if opt_type:
+            parts.insert(1+insert_index, f"type={opt_type.__name__}")
+            insert_index += 1
+        
+        if is_flag is not None:
+            parts.insert(1+insert_index, f"is_flag={is_flag}")
+            insert_index += 1
+
+        if default is not None:
+            parts.insert(1+insert_index, f"default={default}")
+            insert_index += 1
+        
+        if show_default is not None:
+            parts.insert(1+insert_index, f"show_default={show_default}")
+            insert_index += 1
+
+        if required is not None:
+            parts.insert(1+insert_index, f"required={required}")
+            insert_index += 1
+        
+        parts.append(f'help="""{help}"""')
+
+        # 指定位置换行或者每三个参数换一行，help独占一行
+        new_parts = ["@click.option("]
+        new_line = 0
+        for i in range(0, len(parts)-1):
+            new_parts[-1] =  f"{new_parts[-1]}{parts[i]}, "
+            if any([
+                parts[i].startswith("default"),
+                parts[i].startswith("required"),
+                parts[i].startswith("callback"),
+            ]):
+                new_parts.append("")
+                new_line = 0
+
+            new_line += 1
+            if new_line == 3:
+                new_parts.append("")
+                new_line = 0
+
+        if not new_parts[-1]:
+            new_parts.pop()
+        new_parts.append(f"{parts[-1]}")
+        return "\n    ".join(new_parts) + ")"
+    
+    def generate_option_is_gui(self, is_gui:bool) -> str:
+        if is_gui:
+            """生成GUI相关选项"""
+            return self.generate_option(
+                name='--irun-sync',
+                param_name='run_sync',
+                help="同步运行内部命令。阻塞命令行直到内部命令执行完成，比较耗资源。未说明同步执行，默认后台执行内部命令",
+                is_flag=True,
+                is_eager=True,
+                expose_value=False,
+                enabled=is_gui
+            )
+        return ""
 
 def generator_src(command: str, description: str, is_gui: bool):
+    click_option = ClickOption()
     return fr'''      
 import sys,os
 import click
@@ -16,6 +126,25 @@ from pathlib import Path
 
 _child_process = None
 _should_exit = False
+
+class ClickOption:
+    @staticmethod
+    def _generic_callback(ctx, param, value):
+        if ctx.obj is None:
+            ctx.obj = {{}}
+        # 关键：只要 value 不是 None 就保存（允许 False, 0, ""）
+        if value is not None:
+            # 这里实现一个通用的option回调函数
+            ctx.obj[param.name] = tuple([type(param.type), value])
+        return value
+
+    @staticmethod
+    def get(ctx, param_name: str, default: any = None) -> any:
+        if ctx.obj is None:
+            return None or default
+        if param_name in ctx.obj:
+            return ctx.obj.get(param_name, (None, default))[1]
+        return None or default
 
 def out_print(*args, file=sys.stdout, flush=True, **kw):
     print(*args, file=file, flush=flush, **kw)
@@ -112,10 +241,13 @@ def _standardize_command(command: list) -> str:
 
 @click.command(context_settings={{"ignore_unknown_options": True}})
 @click.pass_context
-@click.option("-ov", 'verbose', is_flag=True, show_default=True, help="同步执行内部命令，输出命令执行信息")
-@click.option("--olog-file", 'log_file', type=click.Path(), help="同步执行内部命令，并输出log到文件")
-@click.option('--irun-sync', 'run_sync', is_flag=True, 
-            help="同步运行内部命令。阻塞命令行直到内部命令执行完成，比较耗资源。未说明同步执行，默认后台执行内部命令")
+{click_option.generate_option("--overbose", "verbose", help="同步执行内部命令，输出命令执行信息",
+    short="-ov", is_flag=True, show_default=True, enabled=is_gui)}
+# @click.option("-ov", 'verbose', is_flag=True, show_default=True, help="同步执行内部命令，输出命令执行信息")
+{click_option.generate_option("--olog-file", "log_file", help="同步执行内部命令，输出命令执行信息",
+    is_flag=True, show_default=True, enabled=is_gui)}
+#@click.option("--olog-file", 'log_file', type=click.Path(), help="同步执行内部命令，并输出log到文件")
+{click_option.generate_option_is_gui(is_gui)}
 @click.option("--icommand", 'act_command', is_flag=True, help="获取alias的内部命令")
 @click.option("--oproject-name", '_project_name', is_flag=True, help="获取命令所在组名")
 @click.option('-oh','--help', 'ohelp', is_flag=True, help="显示帮助信息。不会执行内部命令")
@@ -123,7 +255,7 @@ def _standardize_command(command: list) -> str:
 #@click.option("--iexit", "iexit", callback=_inner_exit,
 #    is_eager=True, expose_value=False, is_flag=True, help="退出正在后台执行的内部命令")
 @click.argument("args", nargs=-1, metavar="INNER_ARGS")
-def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _project_name):
+def main(ctx, args, ohelp, ihelp, act_command, _project_name):
     """{description}
     内部命令：{command}
 
@@ -153,7 +285,8 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
         out_print("")
         return
 
-    if verbose:
+    log_file = ClickOption.get(ctx, "log_file")
+    if log_file:
         out_print(f"log_file: {{log_file}}")
 
     _args = [item for item in args]
@@ -200,13 +333,15 @@ def main(ctx, args, verbose, log_file, ohelp, ihelp, act_command, run_sync, _pro
                 target=read_stream, 
                 args=(proc.stderr, f, True), daemon=True)
         stderr_thread.start()
+
+        verbose = ClickOption.get(ctx, "verbose", False)
         if not {is_gui} or verbose or ihelp:
             stdout_thread = threading.Thread(
                     target=read_stream, 
                     args=(proc.stdout, f, False), daemon=True)
             stdout_thread.start()
         
-        if not {is_gui} or run_sync or ihelp or verbose or log_file:
+        if not {is_gui} or ctx.obj.get("run_sync", False) or ihelp or verbose or log_file:
             global _child_process
             _child_process = proc            
             if os.name == 'nt':
