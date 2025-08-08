@@ -1,5 +1,4 @@
-import click
-from typing import Optional, Callable, Any
+from typing import Optional, Any
 
 class ClickOption:
     @staticmethod
@@ -115,8 +114,26 @@ class ClickOption:
             )
         return ""
 
+def smart_split(s: str) -> list:
+    """
+    按空格分割字符串，保留引号内的空格。
+    支持单引号和双引号。
+    """
+    try:
+        import shlex
+        # 保留引号内的原始内容（posix=False时Windows路径更友好）
+        # lex = shlex.shlex(s, posix=(os.name != 'nt')) # 实际测试，posix=True时更通用
+        lex = shlex.shlex(s, posix=True)
+        lex.whitespace_split = True
+        lex.escape = ''
+        return list(lex)
+    except ValueError as e:
+        raise ValueError(f"命令解析失败 - 请检查引号匹配: {str(e)}\n原始命令: {s}")
+
 def generator_src(command: str, description: str, is_gui: bool):
     click_option = ClickOption()
+    # command引号外按照空格分割
+    command_parts = smart_split(command)
     return fr'''      
 import sys,os
 import click
@@ -223,13 +240,15 @@ def _inner_exit(ctx, param, value):
 def _standardize_command(command: list) -> str:
     if not isinstance(command, list) or not command:
         raise ValueError("command must be a non-empty list")
-    # 非彻底解决问题的patch,至少解决cmd /c cmd的命令，cmd是一个单命令，不可以是组合命令
-    first_cmd = command[0].lstrip()
-    seqs = first_cmd.split()
-    if first_cmd.startswith("cmd") and len(seqs) > 2:
-        command = ["cmd", "/c"] + seqs[2:] + command[1:]
-    #
+
     if os.name == 'nt':
+        first_cmd = command[0].lower().lstrip()
+        if first_cmd == "cmd" and len(command) > 2 and command[1].lower() == "/c":
+            pass
+        elif first_cmd.startswith("cmd ") and len(first_cmd.split()) > 2:
+            seqs = first_cmd.split()
+            command = ["cmd", "/c"] + seqs[2:] + command[1:]
+        #
         from subprocess import list2cmdline
         # Windows：使用 list2cmdline 处理整个命令+参数
         command_str = list2cmdline(command)
@@ -254,7 +273,9 @@ def _standardize_command(command: list) -> str:
 #    is_eager=True, expose_value=False, is_flag=True, help="退出正在后台执行的内部命令")
 @click.argument("args", nargs=-1, metavar="INNER_ARGS")
 def main(ctx, args, ohelp, ihelp, act_command, _project_name):
-    """{description}
+    """
+    {description}
+    
     内部命令：{command}
 
     \b
@@ -263,16 +284,11 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
     signal.signal(signal.SIGINT, sigint_handler)
     #out_print(f"执行目录：{{os.getcwd()}}")
 
-    command = r"{command}"
-    """
-    # Windows 特殊处理：确保路径被双引号包裹
-    if os.name == 'nt' and ' ' in command and not (command.startswith('"') and command.endswith('"')):
-        print_command = f'"{{command}}"'  # 关键处理，在windows下shlex.quote无作用
-    else:
-        print_command = shlex.quote(command)
-    """
+    command_seqs = {repr(command_parts)}
+    command = _standardize_command(command_seqs)
+
     if act_command:
-        out_print("ActCommand: " + _standardize_command([command]))
+        out_print("ActCommand: " + command)
         return
     if _project_name:
         out_print("PackageName: " + get_package_name())
@@ -290,7 +306,7 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
     _args = [item for item in args]
     if ihelp:
         _args.extend(['--help'])
-    command_str = _standardize_command([command] + _args)
+    command_str = _standardize_command(command_seqs + _args)
     out_print(f"Excute command: {{command_str}}\n")
     
     creation_flags = 0
