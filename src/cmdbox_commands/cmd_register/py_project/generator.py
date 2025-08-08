@@ -1,3 +1,4 @@
+import click
 from typing import Optional, Callable, Any
 
 class ClickOption:
@@ -13,7 +14,7 @@ class ClickOption:
         param_name: str,
         help: str,
         short: Optional[str] = None,
-        opt_type: Optional[Callable] = None,        
+        opt_type: Optional[str] = None,
         is_flag: Optional[bool] = None,
         default: Optional[Any] = None,
         show_default: Optional[bool] = None,
@@ -54,8 +55,9 @@ class ClickOption:
             parts.insert(insert_index, f"'{short}'")
             insert_index += 1
         
+        # 处理opt_type
         if opt_type:
-            parts.insert(1+insert_index, f"type={opt_type.__name__}")
+            parts.insert(1+insert_index, f"type={opt_type}")
             insert_index += 1
         
         if is_flag is not None:
@@ -135,16 +137,14 @@ class ClickOption:
         # 关键：只要 value 不是 None 就保存（允许 False, 0, ""）
         if value is not None:
             # 这里实现一个通用的option回调函数
-            ctx.obj[param.name] = tuple([type(param.type), value])
+            ctx.obj[param.name] = tuple([param.type, value])
         return value
 
     @staticmethod
     def get(ctx, param_name: str, default: any = None) -> any:
         if ctx.obj is None:
-            return None or default
-        if param_name in ctx.obj:
-            return ctx.obj.get(param_name, (None, default))[1]
-        return None or default
+            return default
+        return ctx.obj.get(param_name, (None, default))[1]
 
 def out_print(*args, file=sys.stdout, flush=True, **kw):
     print(*args, file=file, flush=flush, **kw)
@@ -243,10 +243,8 @@ def _standardize_command(command: list) -> str:
 @click.pass_context
 {click_option.generate_option("--overbose", "verbose", help="同步执行内部命令，输出命令执行信息",
     short="-ov", is_flag=True, show_default=True, enabled=is_gui)}
-# @click.option("-ov", 'verbose', is_flag=True, show_default=True, help="同步执行内部命令，输出命令执行信息")
 {click_option.generate_option("--olog-file", "log_file", help="同步执行内部命令，输出命令执行信息",
-    is_flag=True, show_default=True, enabled=is_gui)}
-#@click.option("--olog-file", 'log_file', type=click.Path(), help="同步执行内部命令，并输出log到文件")
+    opt_type="click.Path()", is_flag=True, show_default=True, enabled=is_gui)}
 {click_option.generate_option_is_gui(is_gui)}
 @click.option("--icommand", 'act_command', is_flag=True, help="获取alias的内部命令")
 @click.option("--oproject-name", '_project_name', is_flag=True, help="获取命令所在组名")

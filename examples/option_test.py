@@ -1,3 +1,4 @@
+import click
 from typing import Optional, Callable, Any
 
 class ClickOption:
@@ -13,7 +14,7 @@ class ClickOption:
         param_name: str,
         help: str,
         short: Optional[str] = None,
-        opt_type: Optional[Callable] = None,        
+        opt_type: Optional[str] = None,        
         is_flag: Optional[bool] = None,
         default: Optional[Any] = None,
         show_default: Optional[bool] = None,
@@ -55,7 +56,7 @@ class ClickOption:
             insert_index += 1
         
         if opt_type:
-            parts.insert(1+insert_index, f"type={opt_type.__name__}")
+            parts.insert(1+insert_index, f"type={opt_type}")
             insert_index += 1
         
         if is_flag is not None:
@@ -121,7 +122,7 @@ def test_is_gui_True():
 {click_option.generate_option("--overbose", "verbose", help="同步执行内部命令，输出命令执行信息",
     short="-ov", is_flag=True, show_default=True, enabled=True)}
 {click_option.generate_option("--olog-file", "log_file", help="同步执行内部命令，输出命令执行信息",
-        is_flag=True, show_default=True, enabled=True)}
+        opt_type="click.Path()", is_flag=True, show_default=True, enabled=True)}
 """
     )
     # @click.option("-ov", 'verbose', is_flag=True, show_default=True, help="同步执行内部命令，输出命令执行信息")
@@ -134,7 +135,7 @@ def test_is_gui_False():
 {click_option.generate_option("--overbose", "verbose", help="同步执行内部命令，输出命令执行信息",
     short="-ov", is_flag=True, show_default=True, enabled=False)}
 {click_option.generate_option("--olog-file", "log_file", help="同步执行内部命令，输出命令执行信息",
-        is_flag=True, show_default=True, enabled=False)}
+        opt_type="click.Path()", is_flag=True, show_default=True, enabled=False)}
 """
     )
     # @click.option("-ov", 'verbose', is_flag=True, show_default=True, help="同步执行内部命令，输出命令执行信息")
