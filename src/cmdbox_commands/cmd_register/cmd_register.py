@@ -117,10 +117,6 @@ class CmdResiter:
     def remove(self, alias: str = None, project_name:str = None)->bool:
         if not alias and not project_name:
             raise ValueError('alias or project_name must be specified')
-        if alias is not None and not alias:
-            raise ValueError(f'alias value is null, invalid')
-        if project_name is not None and not project_name:
-            raise ValueError('project_name is null, invalid')
 
         res = False
         if not alias and project_name:
