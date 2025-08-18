@@ -151,7 +151,7 @@ def ensure_path(path: str) -> str:
 def generator_src(command: str, description: str, is_gui: bool):
     click_option = ClickOption()
     # command引号外按照空格分割
-    command_parts = smart_split(ensure_path(command))
+    command_parts = smart_split(command)
     return fr'''      
 import sys,os
 import click
@@ -167,7 +167,7 @@ _should_exit = False
 class ClickOption:
     @staticmethod
     def _generic_callback(ctx, param, value):
-        if ctx.obj is None:
+        if not hasattr(ctx, "obj") or ctx.obj is None:
             ctx.obj = {{}}
         # 关键：只要 value 不是 None 就保存（允许 False, 0, ""）
         if value is not None:
@@ -177,7 +177,7 @@ class ClickOption:
 
     @staticmethod
     def get(ctx, param_name: str, default: any = None) -> any:
-        if ctx.obj is None:
+        if not hasattr(ctx, "obj") or ctx.obj is None:
             return default
         return ctx.obj.get(param_name, (None, default))[1]
 
@@ -295,10 +295,10 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
     #out_print(f"执行目录：{{os.getcwd()}}")
 
     command_seqs = {command_parts}
-    command = _standardize_command(command_seqs)
+    command_str = _standardize_command(command_seqs)
 
     if act_command:
-        out_print("ActCommand: " + command)
+        out_print("ActCommand: " + command_str)
         return
     if _project_name:
         out_print("PackageName: " + get_package_name())
@@ -365,9 +365,17 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
                     args=(proc.stdout, f, False), daemon=True)
             stdout_thread.start()
         
-        if not {is_gui} or ctx.obj.get("run_sync", False) or ihelp or verbose or log_file:
-            global _child_process
-            _child_process = proc            
+        global _child_process
+        _child_process = proc
+
+        run_sync = ClickOption.get(ctx, "run_sync", False)
+        """
+        print(f"run_sync: {{run_sync}}")
+        print(f"verbose: {{verbose}}")
+        print(f"ihelp: {{ihelp}}")
+        print(f"log_file: {{log_file}}")
+        """
+        if not {is_gui} or run_sync or ihelp or verbose or log_file:
             if os.name == 'nt':
                 # 解决windows下在wait时无法响应ctrl+c的问题
                 try:
@@ -393,7 +401,8 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
             f.close()
     except Exception as e:
         sigint_handler(signal.SIGINT, None, False)
-        out_print(f"Excute command '{{command_str}}' failed: {{e}}")
+        out_print(f"Excute command '{{command_str}}' failed.")
+        out_print(f"Error: {{e}}")
         out_print(ctx.get_help())
         sys.exit(1)
 
