@@ -359,6 +359,7 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
             global _child_process
             _child_process = proc            
             if os.name == 'nt':
+                # 解决windows下在wait时无法响应ctrl+c的问题
                 try:
                     while True:
                         if _child_process.poll() is not None:
@@ -368,8 +369,9 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
                         time.sleep(1)
                 except KeyboardInterrupt:
                     sigint_handler(signal.SIGINT, None)
-            else:
-                proc.wait()
+            exit_code = proc.wait()
+            # out_print(f"Exit code: {{exit_code}}")
+            
             if stderr_thread:
                 stderr_thread.join()
             if stdout_thread:
