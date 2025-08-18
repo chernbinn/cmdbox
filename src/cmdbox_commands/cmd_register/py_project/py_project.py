@@ -42,10 +42,17 @@ class PyProject:
                 cmd_type='scripts',
                 cmd_entry=f'{self.project_name}.{command.src_file_name()[:-3]}:main'
             ))
-
+        
+        from cmdbox.cmdbox import _version
+        dot_count = _version().count('.')
+        if dot_count == 3:
+            base_version = _version().rsplit('.', 1)[0]
+        else:
+            base_version = _version()
+        click.echo(f"base_version: {base_version}")
         self.pyproject_toml = PyprojectToml(
-            project_name=self.project_name,
-            projec_version=Base32V.encrypt_version('0.1.0', f"cmdr_{self.project_name}"),
+            project_name=self.project_name,           
+            projec_version=Base32V.encrypt_version(base_version, f"cmdr_{self.project_name}"),
             scripts=scripts
         )
         click.echo(f"save pyproject.toml")

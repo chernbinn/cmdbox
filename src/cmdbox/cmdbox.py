@@ -76,6 +76,8 @@ def cli(show_list, show_path):
 
 def _version():
     click.echo(f"cmdbox version: {__version__}")
+    return __version__
+
 
 def main():
     cli()
