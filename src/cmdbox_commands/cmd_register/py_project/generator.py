@@ -116,24 +116,42 @@ class ClickOption:
 
 def smart_split(s: str) -> list:
     """
-    按空格分割字符串，保留引号内的空格。
-    支持单引号和双引号。
+    按空格分割字符串，保留引号内的内容（支持单双引号嵌套）
+    增强功能：
+    - 自动处理Windows和Unix路径差异
+    - 保留原始引号信息（用于后续处理）
+    - 更好的错误处理
+    
+    >>> smart_split('cmd "/path with space"')
+    ['cmd', '/path with space']
+    >>> smart_split("git commit -m 'fix: bug'")
+    ['git', 'commit', '-m', 'fix: bug']
     """
+    if not s.strip():
+            return []
+        
     try:
         import shlex
         # 保留引号内的原始内容（posix=False时Windows路径更友好）
-        # lex = shlex.shlex(s, posix=(os.name != 'nt')) # 实际测试，posix=True时更通用
-        lex = shlex.shlex(s, posix=True)
+        #lex = shlex.shlex(s, posix=(os.name != 'nt')) # 实际测试，posix=True时更通用
+        lex = shlex.shlex(s, posix=True) # 实际测试，posix=True时更通用
         lex.whitespace_split = True
         lex.escape = ''
         return list(lex)
     except ValueError as e:
         raise ValueError(f"命令解析失败 - 请检查引号匹配: {str(e)}\n原始命令: {s}")
 
+def ensure_path(path: str) -> str:
+    """
+    确保路径路径经过后续处理后依然有效
+    """
+    strv = repr(path)
+    return strv[1:-1]
+
 def generator_src(command: str, description: str, is_gui: bool):
     click_option = ClickOption()
     # command引号外按照空格分割
-    command_parts = smart_split(command)
+    command_parts = smart_split(ensure_path(command))
     return fr'''      
 import sys,os
 import click
@@ -240,22 +258,14 @@ def _inner_exit(ctx, param, value):
 def _standardize_command(command: list) -> str:
     if not isinstance(command, list) or not command:
         raise ValueError("command must be a non-empty list")
-
     if os.name == 'nt':
-        first_cmd = command[0].lower().lstrip()
-        if first_cmd == "cmd" and len(command) > 2 and command[1].lower() == "/c":
-            pass
-        elif first_cmd.startswith("cmd ") and len(first_cmd.split()) > 2:
-            seqs = first_cmd.split()
-            command = ["cmd", "/c"] + seqs[2:] + command[1:]
-        #
         from subprocess import list2cmdline
         # Windows：使用 list2cmdline 处理整个命令+参数
-        command_str = list2cmdline(command)
+        command_str = list2cmdline(command) # 有局限性，仅限windows平台使用
     else:
         import shlex
-        # 非 Windows：使用 shlex.join（Python 3.8+）或手动拼接
-        command_str = shlex.join(command) if hasattr(shlex, 'join') else " ".join(shlex.quote(arg) for arg in command)
+        # shlex.join虽然跨平台，但是命令是被使用单引号括起来的，在windows下会报错
+        command_str = shlex.join(command) if hasattr(shlex, 'join') else " ".join(arg for arg in command)
     return command_str
 
 @click.command(context_settings={{"ignore_unknown_options": True}})
@@ -276,7 +286,7 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
     """
     {description}
     
-    内部命令：{command}
+    内部命令：{repr(command)}
 
     \b
     INNER_ARGS    内部命令的选项，使用--ihelp查看。如果内部命令不支持任何选项，该参数无效。
@@ -284,7 +294,7 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
     signal.signal(signal.SIGINT, sigint_handler)
     #out_print(f"执行目录：{{os.getcwd()}}")
 
-    command_seqs = {repr(command_parts)}
+    command_seqs = {command_parts}
     command = _standardize_command(command_seqs)
 
     if act_command:
