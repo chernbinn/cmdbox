@@ -209,7 +209,7 @@ class PyProject:
     @staticmethod
     def get_project_name(alias: str):
         command = fr'{alias} --oproject-name'
-        result = child_run(command)
+        result = child_run(command, 2)
         if is_debug():
             click.echo(f"get_project_name-command: {command}")
             click.echo(f"get_project_name-result.stdout: \n{result.stdout}")
