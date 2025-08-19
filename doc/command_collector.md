@@ -58,9 +58,26 @@ cccmd search <关键词>
 
 可以通过设置环境变量`CCCMD_DBCCCMD_DB`来更改命令存储目录，默认为`~/.cmdbox/command_collector`
 
-
-
-
+## 常见问题
+### 1. 命令识别错误
+字符串转义不正确，导致存储的命令发生异变
+比如
+```
+>> cccmd add win -c "handle F:\ | Select-Object -Skip 5 | ForEach-Object { $f = $_ -split '\s+';if ($f.Count -gt 2 -and ($f[2] -match '^\d+$')) { taskkill /F /T /PID $f[2] } }" -d "停止对F:\的占用，杀掉占用的进程"
+>> cccmd list win
+0: handle F:\ | Select-Object -Skip 5 | ForEach-Object { No matching handles found. =  -split '\s+';if (No matching handles found..Count -gt 2 -and (No matching handles found.[2] -match '^\d+$')) { taskkill /F /T /PID No matching handles found.[2] } } #停止对F:\的占用，杀掉占用的进程
+```
+这实际不是问题。命令字符串参数传输格式问题，确保参数是单纯的字符串不可以被执行的终端解释，比如linux系统，在单引号之间的字符串不会被解释执行；在powershell终端，单引号也会有用。但是如果是在cmd终端（windows系统默认终端），单引号会失效，双引号有用。
+正确添加方式：
+**powershell**
+```powershell
+> cccmd add win -c 'handle F:\ | Select-Object -Skip 5 | ForEach-Object { $f = $_ -split "\s+";if ($f.Count -gt 2 -and ($f[2] -match "^\d+$")) { taskkill /F /T /PID $f[2] } }' -d "停止对F:\的占用，杀掉占用的进程"
+```
+**cmd**
+```cmd
+> cccmd add win -c "handle F:\ | Select-Object -Skip 5 | ForEach-Object { $f = $_ -split \"\s+\";if ($f.Count -gt 2 -and ($f[2] -match \"^\d+$\")) { taskkill /F /T /PID $f[2] } }" -d "停止对F:\的占用，杀掉占用的进程"
+```
+注意：该添加的命令实际上是在powershell中执行的命令，在cmd下本身是不支持的。
 
 
 
