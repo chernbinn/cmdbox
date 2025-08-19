@@ -391,9 +391,9 @@ def main(ctx, args, ohelp, ihelp, act_command, _project_name):
             # out_print(f"Exit code: {{exit_code}}")
             
             if stderr_thread:
-                stderr_thread.join()
+                stderr_thread.join(timeout=2)
             if stdout_thread:
-                stdout_thread.join()
+                stdout_thread.join(timeout=2)
         else:
             out_print(f"Backend child process id: {{proc.pid}}")
 
