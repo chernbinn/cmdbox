@@ -131,4 +131,9 @@ def sync(strategy, project_name = None):
             traceback.print_exc()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print('KeyboardInterrupt')
+        #cleanup()
+        sys.exit(0)

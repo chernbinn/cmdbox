@@ -54,6 +54,10 @@ class CmdResiter:
                 self.cmd_register = defaultdict(dict)
 
     def _update_project(self, project_name: str) -> bool:
+        if not project_name or project_name == "None":
+            click.echo(f"_update_project, project_name can not be None")
+            return False
+
         commands = []
         try:
             for alias, cmd in self.cmd_register.items():
@@ -150,7 +154,9 @@ class CmdResiter:
         else:
             res = PyProject.uninstall(project_name)
             PyProject.clean_by_path(self.cmd_register_toml.parent / project_name)
-        self._save()
+
+        if res:
+            self._save()
         return res
     
     def list(self, show_project_name = None)->None:
