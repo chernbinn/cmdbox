@@ -61,6 +61,7 @@ def show_task(manager, task_id, task):
     pid_text = click.style(f'{task["pid"]} {pid_status}', fg=pid_color)
     # 多行显示内容
     click.echo(f"{task_id}")
+    click.echo(f"  Start Time: {task['start_time']}")
     click.echo(f"  Status: {status_text}")
     click.echo(f"  Name: {task['name']}")
     click.echo(f"  PID: {pid_text}")
