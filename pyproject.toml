@@ -36,11 +36,11 @@ dev = [
 
 [project.scripts]
 cmdbox = "cmdbox.cmdbox:main"
-cccmd = "cmdbox_commands.command_collector.cccmd:main"
-ownpygit = "cmdbox_commands.ownpygit.ownpygit:main"
-taskbm = "cmdbox_commands.task_manager.cli:cli"
 cmdr = "cmdbox_commands.cmd_register.cli:main"
-pycompare = "cmdbox_commands.pycompare.pycompare:cli"
+taskbm = "cmdbox_commands.task_manager.cli:cli"
+ownpygit = "cmdbox_commands.ownpygit.ownpygit:main"
+cccmd = "cmdbox_commands.command_collector.cccmd:main"
+# pycompare = "cmdbox_commands.pycompare.pycompare:cli"
 
 #[project.gui-scripts]
 #pycompare = "cmdbox_commands.pycompare.pycompare:cli"
