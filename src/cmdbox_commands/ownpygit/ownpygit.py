@@ -12,6 +12,8 @@ ALIAS_FILE = DB_DIR / "ownpygit_alias.cfg"
 CURRENT_DIR_FILE = DB_DIR / "ownpygit_current_dir.cfg"
 PREV_DIR_FILE = DB_DIR / "ownpygit_prev_dir.cfg"
 
+EXCLUDED_FILES = [".git", ".gitignore"]
+
 def _ensure_db_dir():
     """确保配置目录存在"""
     if DB_DIR.exists():
@@ -178,24 +180,59 @@ def delete_repo(target, remove_dir=False):
     return True
 
 @_judge_repo_path
-def ls_repo()->None:
+def ls_repo(module:str=None)->None:
     """列出当前激活仓库的文件和目录"""
-    repo_dir = _get_working_dir()
-    try:
-        print(f"[ownpygit] 仓库内容: {repo_dir}")
+    prefix = f"模块" if module else "仓库"
+    repo_dir = _get_working_dir()    
+    try:        
         repo_path = Path(repo_dir)
+        if module:
+            print(f"[ownpygit] 列出{prefix}: {module}")
+            repo_path = repo_path / module
+        print(f"[ownpygit] {prefix}路径: {repo_path}")
         for item in repo_path.iterdir():
+            if item.name in EXCLUDED_FILES:
+                continue
             if item.is_dir():
                 print(f"  d {item.name}/")
             elif item.is_file():
                 print(f"  - {item.name}")
     except Exception as e:
-        print(f"[错误] 列出仓库内容失败: {e}")
+        if module:
+            print(f"[错误] 模块 {module} 不存在")
+        else:
+            print(f"[错误] 列出内容失败: {e}")
 
 @_judge_repo_path
-def cp_file(file_path, dst_path=None)->bool:
+def list_modules()->None:
+    """列出当前激活仓库的模块"""
+    repo_dir = _get_working_dir()
+    try:        
+        repo_path = Path(repo_dir)
+        print(f"[ownpygit] 模块列表: {repo_path}")
+        for item in repo_path.iterdir():
+            if item.name in EXCLUDED_FILES:
+                continue
+            if item.is_dir():
+                print(f"  d {item.name}/")
+    except Exception as e:
+        print(f"[错误] 列出模块列表失败: {e}")
+
+@_judge_repo_path
+def cp_file(file_path, module:str=None, dst_path=None)->bool:
     """将文件拷贝到当前激活仓库"""    
     cwd = _get_working_dir()
+    if module:
+        if not (cwd / module).exists():
+            # 提示创建模块
+            print(f"[警告] 模块 {module} 不存在, 是否创建? (y/n)")
+            choice = input().strip().lower()
+            if choice != 'y':
+                print(f"[ownpygit] 操作取消")
+                return False
+            # 创建模块目录
+            (cwd / module).mkdir(parents=True, exist_ok=True)
+        cwd = cwd / module
     src = Path(file_path)    
     dst = None
     if dst_path:
@@ -225,9 +262,14 @@ def cp_file(file_path, dst_path=None)->bool:
         return False
 
 @_judge_repo_path
-def ocp_file(in_path, out_path):
+def ocp_file(in_path, module:str=None, out_path=None):
     """将仓库文件拷贝到指定路径"""
     cwd = _get_working_dir()
+    if module:
+        cwd = cwd / module
+        if not (cwd / module).exists():
+            print(f"[错误] 模块 {module} 不存在")
+            return False
     in_path = cwd / in_path
     if not in_path.exists():
         print(f"[错误] 仓库路径不存在: {in_path}")
@@ -479,13 +521,16 @@ def main():
         print("  ownpygit delete-repo <path/alias> [--remove-dir] 删除仓库记录或目录")
         print("                             指定--remove-dir参数时，同时删除目录，不指定时只删除记录")
         print("  ownpygit <git命令>         执行Git操作。'git命令'是git命令的参数，如add, commit等，使用ownpygit代替git，参数和直接使用git相同")
-        print("  ownpygit ls                列出仓库文件")
+        print("  ownpygit ls [-m module]    列出仓库文件;如果指定module，列出module下的文件")
         print("  ownpygit compare <file|dir> 指定文件或目录与仓库工作目录下的文件对比")
         print("  ownpygit cp <file|dir> [dst]   将文件拷贝到当前仓库工作目录，如果不指定dst，默认拷贝到当前仓库工作目录且相同名称")
-        print("                                 如果指定dst，dst是相对当前仓库工作目录的路径，可以用于指定目标文件的名称")   
+        print("                                 如果指定dst，dst是相对当前仓库工作目录的路径，可以用于指定目标文件的名称")
         print("  ownpygit ocp <file|dir> <path> 将仓库文件拷贝到指定路径。仓库文件路径是相对于仓库工作目录的路径")
+        print("  ownpygit mcp <module> <file|dir>           拷贝文件或目录到指定模块")
+        print("  ownpygit omcp <module> <file|dir> [dst]    拷贝指定模块下的文件或目录到dst。如果dst未指定，默认当前目录")
+        print("                                             file|dir是相对模块目录的路径")
         print("  ownpygit chdir <path>      切换仓库工作目录")
-        print("  ownpygit cd <path|->       进入仓库目录或返回初始目录,path是相对目标仓库的子路径，-是返回进入目标仓库前的外部目录")
+        print("  ownpygit cd [path|-]       进入仓库目录或返回初始目录,path是相对目标仓库的子路径，-是返回进入目标仓库前的外部目录")
         print("                             注意：cd命令是进入当前仓库下的目录，不会改变仓库的工作目录")
         print("Options:")
         print("  -h, --help   显示帮助信息")
@@ -520,7 +565,14 @@ def main():
         except:
             print("cmdbox version 0.0.0")
     elif command == "ls":
-        ls_repo()
+        module = None
+        if len(sys.argv) > 2 and sys.argv[2].startswith("-m"):
+            if len(sys.argv) > 3:
+                module = sys.argv[3]                
+            else:
+                list_modules()
+                return
+        ls_repo(module)
     elif command == "delete-repo":
         if len(sys.argv) < 3:
             print("请指定要删除的路径或别名")
@@ -556,6 +608,21 @@ def main():
             print("请指定要拷贝的仓库文件路径和目标路径")
             return
         ocp_file(sys.argv[2], sys.argv[3])
+    elif command == "mcp":
+        if len(sys.argv) < 4:
+            print("请指定要拷贝的模块和文件路径")
+            return
+        module = sys.argv[2]
+        cp_file(sys.argv[3], module, sys.argv[4])
+    elif command == "omcp":
+        if len(sys.argv) < 4:
+            print("请指定要拷贝的模块和文件路径")
+            return
+        dst = None
+        if len(sys.argv) > 4:
+            dst = sys.argv[4]
+        module = sys.argv[2]
+        ocp_file(sys.argv[3], module, dst)
     else:
         run_git_command(sys.argv[1:])
 
