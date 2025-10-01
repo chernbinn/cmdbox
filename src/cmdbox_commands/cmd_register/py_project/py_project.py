@@ -146,6 +146,7 @@ class PyProject:
                 raise ValueError(f"is_installed, command '{command}' failed")
             for line in result.stdout.splitlines():
                 project = line.split()[0]
+                if project == "cmdbox": continue
                 is_installed, project_name = PyProject.is_installed(alias, project)
                 if is_installed:
                     return True, project_name

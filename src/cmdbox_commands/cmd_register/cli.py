@@ -82,8 +82,11 @@ def remove(alias: str = None, project_name:str = None):
         click.echo('alias or project_name must be specified')
         return
     try:
-        cmd_register.remove(alias, project_name)
-        click.echo(f"删除自定义命令或命令集成功: {alias if alias else project_name}")
+        res = cmd_register.remove(alias, project_name)
+        if res:
+            click.echo(f"删除自定义命令或命令集成功: {alias if alias else project_name}")
+        else:
+            click.echo(f"删除自定义命令或命令集失败。")
     except ValueError as e:
         click.echo(f"删除自定义命令或命令集失败: {str(e)}")
         if is_debug():
