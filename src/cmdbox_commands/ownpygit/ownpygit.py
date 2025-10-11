@@ -267,10 +267,15 @@ def ocp_file(in_path, module:str=None, out_path=None):
     cwd = _get_working_dir()
     if module:
         cwd = cwd / module
-        if not (cwd / module).exists():
+        print(f"[ownpygit] 模块路径: {cwd}")
+        if not (cwd).exists():
             print(f"[错误] 模块 {module} 不存在")
             return False
-    in_path = cwd / in_path
+    
+    if in_path == "*":
+        in_path = cwd
+    else:
+        in_path = cwd / in_path
     if not in_path.exists():
         print(f"[错误] 仓库路径不存在: {in_path}")
         return False
@@ -279,7 +284,7 @@ def ocp_file(in_path, module:str=None, out_path=None):
     if not out_path.exists():
         print(f"[错误] 目标路径不存在: {out_path}")
         return False
-        
+    
     if out_path.is_dir():
         out_path = out_path / in_path.name
 
@@ -527,7 +532,7 @@ def main():
         print("                                 如果指定dst，dst是相对当前仓库工作目录的路径，可以用于指定目标文件的名称")
         print("  ownpygit ocp <file|dir> <path> 将仓库文件拷贝到指定路径。仓库文件路径是相对于仓库工作目录的路径")
         print("  ownpygit mcp <module> <file|dir>           拷贝文件或目录到指定模块")
-        print("  ownpygit omcp <module> <file|dir> [dst]    拷贝指定模块下的文件或目录到dst。如果dst未指定，默认当前目录")
+        print("  ownpygit omcp <module> [<file|dir> [dst]]  拷贝指定模块下的文件或目录到dst。如果dst未指定，默认当前目录")
         print("                                             file|dir是相对模块目录的路径")
         print("  ownpygit chdir <path>      切换仓库工作目录")
         print("  ownpygit cd [path|-]       进入仓库目录或返回初始目录,path是相对目标仓库的子路径，-是返回进入目标仓库前的外部目录")
@@ -615,14 +620,24 @@ def main():
         module = sys.argv[2]
         cp_file(sys.argv[3], module, sys.argv[4])
     elif command == "omcp":
-        if len(sys.argv) < 4:
-            print("请指定要拷贝的模块和文件路径")
+        for i, arg in enumerate(sys.argv):
+            print(f"arg[{i}] = {arg}")
+        if len(sys.argv) < 3:
+            print("请指定要拷贝的模块")
             return
+        module = sys.argv[2]
+        if len(sys.argv) > 3:
+            file = sys.argv[3]
+        else:
+            file = "*"
+
         dst = None
         if len(sys.argv) > 4:
             dst = sys.argv[4]
-        module = sys.argv[2]
-        ocp_file(sys.argv[3], module, dst)
+        else:
+            dst = os.getcwd()
+        
+        ocp_file(file, module, dst)
     else:
         run_git_command(sys.argv[1:])
 
