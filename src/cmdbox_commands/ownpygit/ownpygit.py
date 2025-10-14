@@ -233,6 +233,10 @@ def cp_file(file_path, module:str=None, dst_path=None)->bool:
             # 创建模块目录
             (cwd / module).mkdir(parents=True, exist_ok=True)
         cwd = cwd / module
+    
+    if file_path == None:
+        print(f"[错误] 请指定要拷贝的文件路径")
+        return False
     src = Path(file_path)    
     dst = None
     if dst_path:
@@ -614,14 +618,19 @@ def main():
             return
         ocp_file(sys.argv[2], sys.argv[3])
     elif command == "mcp":
-        if len(sys.argv) < 4:
+        if len(sys.argv) < 3:
             print("请指定要拷贝的模块和文件路径")
             return
         module = sys.argv[2]
-        cp_file(sys.argv[3], module, sys.argv[4])
+        file = None
+        if len(sys.argv) > 3:
+            file = sys.argv[3]
+
+        dst = None
+        if len(sys.argv) > 4:
+            dst = sys.argv[4]
+        cp_file(file, module, dst)
     elif command == "omcp":
-        for i, arg in enumerate(sys.argv):
-            print(f"arg[{i}] = {arg}")
         if len(sys.argv) < 3:
             print("请指定要拷贝的模块")
             return
