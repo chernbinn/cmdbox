@@ -611,12 +611,12 @@ def main():
         dst = None
         if len(sys.argv) > 3:
             dst = sys.argv[3]
-        cp_file(sys.argv[2], dst)
+        cp_file(sys.argv[2], None, dst)
     elif command == "ocp":
         if len(sys.argv) < 4:
             print("请指定要拷贝的仓库文件路径和目标路径")
             return
-        ocp_file(sys.argv[2], sys.argv[3])
+        ocp_file(sys.argv[2], None, sys.argv[3])
     elif command == "mcp":
         if len(sys.argv) < 3:
             print("请指定要拷贝的模块和文件路径")
