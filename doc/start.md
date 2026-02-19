@@ -38,6 +38,9 @@ pre-commit install -t commit-msg
 ```
 版本号升级方案基于setuptools-git-versioning实现。
 版本号（X.Y.Z）升级说明：
+X: 主版本号，当有不兼容的API变更时升级
+Y: 次版本号，当添加了功能但保持向后兼容时升级
+Z: 修订版本号，当修复了错误但保持向后兼容时升级
 升级Y版本号：commit msg以"newfeat"开头，"newfeat!"认为无效msg，会报错
 升级X版本号：commit msg以"feat!"开头
 
