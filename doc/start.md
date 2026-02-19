@@ -44,7 +44,13 @@ pre-commit install -t commit-msg
 ## 发布模式部署
 1. 全局环境安装pipx
 ```bash
+# 1.安装pipx包
 pip install pipx
+# 2.添加pipx命令到系统环境变量
+python -m pipx ensurepath
+# 3. 重启命令行窗口
+pipx --version
+# 如果显示版本号，说明安装成功
 ```
 2. 安装
 ```bash
