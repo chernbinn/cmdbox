@@ -112,7 +112,7 @@ def list(project_name):
 @click.option('-a', '--alias', 'alias', default=None, help='自定义命令名称')
 def show(project_name, alias):
     """
-    显示指定命令组命令或者指定命令的详细信息。
+    显示指定命令组命令或者指定命令的详细信息。没有指定命令组或命令时，显示所有自定义命令的详细信息。
     """
     try:
         cmd_register.show(project_name, alias)

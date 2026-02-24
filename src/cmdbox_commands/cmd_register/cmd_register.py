@@ -232,6 +232,11 @@ class CmdResiter:
         """
         显示指定命令组或命令的详细信息。
         """
+        if not project_name and not alias:
+            for _alias in self.cmd_register.keys():
+                self._print_cmd_register(self.cmd_register[_alias]['project_name'], _alias)
+            return
+            
         if project_name:
             try:
                 if not self._check_exist(project_name):
