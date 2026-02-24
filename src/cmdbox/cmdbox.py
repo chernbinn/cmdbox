@@ -27,7 +27,16 @@ def get_project_scripts(script_tag: str):
     """只获取当前项目注册的命令"""
     project_name = "cmdbox_commands"  # 替换为你的项目名
     scripts = []
-    for entry_point in entry_points().get(f"{script_tag}", []):
+    entry_points_result = entry_points()
+    # Handle both dict-like and EntryPoints object formats
+    if hasattr(entry_points_result, 'get'):
+        # Dict-like format (older Python versions)
+        entry_points_list = entry_points_result.get(f"{script_tag}", [])
+    else:
+        # EntryPoints object format (newer Python versions)
+        entry_points_list = entry_points_result.select(group=f"{script_tag}")
+    
+    for entry_point in entry_points_list:
         if project_name in entry_point.value.split(".", 1)[0]:
             scripts.append({
                 "name": entry_point.name,
@@ -56,13 +65,13 @@ def cli(show_list, show_path):
     # 实现--list选项功能
     if show_list:
         # 动态从project.scripts中解析
-        scripts = get_scripts()
+        scripts = get_scripts() or []
         click.echo("支持的命令行工具:")
         for script in scripts:
             click.echo(f"  {script['name']}")
         click.echo()
         click.echo("支持的GUI工具:")
-        gui_scripts = get_gui_scripts()
+        gui_scripts = get_gui_scripts() or []
         for script in gui_scripts:
             click.echo(f"  {script['name']}")
         click.echo()    
