@@ -2,7 +2,6 @@ import os, sys
 import json
 import time
 import atexit
-import signal
 from datetime import datetime
 import subprocess
 import atexit
@@ -163,10 +162,22 @@ class TaskManager:
         pid = db["tasks"][task_id]["pid"]
         try:
             if pid is not None and self._is_process_running(pid):
-                if os.name == 'posix':
-                    os.killpg(os.getpgid(pid), signal.SIGTERM)
-                else:
-                    os.kill(pid, signal.CTRL_BREAK_EVENT)
+                # 使用psutil进行跨平台进程终止
+                proc = psutil.Process(pid)
+                # 终止进程及其子进程
+                for child in proc.children(recursive=True):
+                    try:
+                        child.terminate()
+                    except:
+                        pass
+                proc.terminate()
+                # 等待进程终止
+                try:
+                    proc.wait(timeout=5)
+                except:
+                    # 强制终止
+                    proc.kill()
+                
                 db["tasks"][task_id]["status"] = "killed"
                 db["tasks"][task_id]["end_time"] = datetime.now().isoformat()
                 self._save_db(db)
