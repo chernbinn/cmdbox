@@ -98,10 +98,13 @@ def clean():
 def kill(task_id):
     """终止任务"""
     manager = TaskManager()
-    if manager.kill_task(task_id):
-        click.echo(f"Task {task_id} killed")
-    else:
-        click.echo("Task not found or already dead", err=True)
+    try:
+        if manager.kill_task(task_id):
+            click.echo(f"Task {task_id} killed")
+        else:
+            click.echo("Task not found or already dead", err=True)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
 
 if __name__ == '__main__':
     cli()
