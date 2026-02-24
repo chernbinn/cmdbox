@@ -109,6 +109,21 @@ def list(project_name):
 
 @main.command()
 @click.option('-p', '--project', 'project_name', default=None, help='分组名称')
+@click.option('-a', '--alias', 'alias', default=None, help='自定义命令名称')
+def show(project_name, alias):
+    """
+    显示指定命令组命令或者指定命令的详细信息。
+    """
+    try:
+        cmd_register.show(project_name, alias)
+    except ValueError as e:
+        click.echo(f"显示自定义命令详细信息失败: {str(e)}")
+        if is_debug():
+            import traceback
+            traceback.print_exc()
+
+@main.command()
+@click.option('-p', '--project', 'project_name', default=None, help='分组名称')
 @click.option('-s', '--strategy', 'strategy', type=click.Choice(['configure', 'installed', 'mix'], 
     case_sensitive=False), 
     prompt=True,

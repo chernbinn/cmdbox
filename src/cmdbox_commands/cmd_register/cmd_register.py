@@ -228,6 +228,36 @@ class CmdResiter:
         if exist_diff:
             click.echo(f'运行 "cmdr sync --help" 了解同步配置、安装的命令')
 
+    def show(self, project_name: str = None, alias: str = None)->None:
+        """
+        显示指定命令组或命令的详细信息。
+        """
+        if project_name:
+            try:
+                if not self._check_exist(project_name):
+                    raise ValueError(f'Project "{project_name}" dose not exist')
+                for _alias in self.cmd_register.keys():
+                    if self.cmd_register[_alias]['project_name'] == project_name:
+                        self._print_cmd_register(project_name, _alias)
+            except ValueError as e:
+                click.echo(f"显示命令组{project_name}详细信息失败: {str(e)}")
+                if is_debug():
+                    import traceback
+                    traceback.print_exc()
+                return
+        if alias:
+            try:
+                project_name = self._get_project_by_alias(alias)
+                if not project_name:
+                    raise ValueError(f'命令"{alias}"未配置')
+                self._print_cmd_register(project_name, alias)
+            except ValueError as e:
+                click.echo(f"显示自定义命令{alias}详细信息失败: {str(e)}")
+                if is_debug():
+                    import traceback
+                    traceback.print_exc()
+                return
+
     def sync(self, strategy: str, project_name: str = None):
         """
         同步配置的自定义命令和安装的自定义命令，使配置和安装保持一致。"""
@@ -241,6 +271,7 @@ class CmdResiter:
             raise ValueError(f'Unknown strategy: {strategy}')
 
     def _pre_check_register(self, alias_cmd: AliasCMD)->bool:
+        ''' 执行安装自定义命令，安装前检查自定义命令是否已配置并构建需要安装命令的一些信息 '''
         b_equal = False
         if alias_cmd.alias in self.cmd_register:
             old_alias_cmd = AliasCMD(
@@ -457,3 +488,14 @@ class CmdResiter:
             'description': description
         }
 
+    def _print_cmd_register(self, project_name: str, alias: str):
+        """
+        打印自定义命令的详细信息。"""
+        if not project_name or not alias:
+            return
+        click.echo(f"命令组: {project_name}")
+        click.echo(f"命令别名: {alias}")
+        click.echo(f"命令: {self.cmd_register[alias]['command']}")
+        click.echo(f"是否为GUI命令: {self.cmd_register[alias]['is_gui']}")
+        click.echo(f"描述: {self.cmd_register[alias]['description']}")
+        click.echo("")
