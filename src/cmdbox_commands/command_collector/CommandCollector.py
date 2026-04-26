@@ -154,19 +154,20 @@ class CommandCollector:
         
         print(f"模块 [{module}] 中的命令:")
         for idx, cmd in enumerate(commands):
-            # 格式化输出：索引 + 命令 + 描述（自动换行对齐）
-            cmd_line = f"{idx}: {cmd['command']}"
-            #if cmd['description']:
-            #    # 计算对齐空格（固定30字符或命令长度+2，取较大值）
-            #    align_len = max(30, len(cmd['command']) + 2)
-            #    print(f"{cmd_line.ljust(align_len)} # {cmd['description']}")
-            #else:
-            #    print(cmd_line)
-            print(
-                f"{Fore.YELLOW}{idx}:{Fore.RESET} {Fore.CYAN}{cmd['command']}{Fore.RESET}"
-                #f"{' ' * (max(30, len(cmd['command']) - len(cmd['command'])))}"
-                f"{Fore.GREEN} #{cmd['description']}{Fore.RESET}"
-            )
+            # 分割命令和描述为多行
+            cmd_lines = cmd['command'].split('\n')
+            desc_lines = cmd['description'].split('\n') if cmd['description'] else []
+            
+            # 第一行：索引 + 命令
+            print(f"{Fore.YELLOW}{idx}:{Fore.RESET} {Fore.CYAN}{cmd_lines[0]}{Fore.RESET}")
+            
+            # 后续命令行：缩进对齐
+            for i in range(1, len(cmd_lines)):
+                print(f"{' ' * (len(str(idx)) + 2)}{Fore.CYAN}{cmd_lines[i]}{Fore.RESET}")
+            
+            # 描述行：每行前加#
+            for desc in desc_lines:
+                print(f"{' ' * (len(str(idx)) + 2)}{Fore.GREEN}#{desc}{Fore.RESET}")
         return True
 
     def search_commands(self, keyword: str, _module: str = None) -> Dict[str, List[Dict]]:
