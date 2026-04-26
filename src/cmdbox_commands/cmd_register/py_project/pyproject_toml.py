@@ -60,21 +60,11 @@ class PyprojectToml(BaseModel):
             text=True).stdout.strip().split(' ')[1]
 
     def __setuptools_version(self):
-        try:
-            result = subprocess.run(
-                f'pip show setuptools', 
-                shell=True, 
-                capture_output=True, 
-                text=True)
-            output = result.stdout.strip()
-            for line in output.splitlines():
-                if line.startswith('Version:'):
-                    return line.split(':', 1)[1].strip()
-            # Fallback to a default version if not found
-            return '42.0'
-        except:
-            # Fallback to a default version if any error occurs
-            return '42.0'
+        return subprocess.run(
+            f'pip show setuptools', 
+            shell=True, 
+            capture_output=True, 
+            text=True).stdout.strip().splitlines()[1].split(' ')[1]
     
     def save_pyprojectToml(self, pyproject_toml: Path):
         with open(pyproject_toml, 'w', encoding='utf-8') as f:
