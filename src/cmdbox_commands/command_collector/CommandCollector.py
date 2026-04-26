@@ -41,7 +41,7 @@ class CommandCollector:
                 confirm = input(f"是否覆盖模块 [{module}] 中的命令 [{command}] 吗？(y/n): ")
                 if confirm.lower()!= 'y':
                     print("取消添加")
-                    return
+                    return True
                 data[idx] = {
                     "command": command,
                     "description": description
@@ -49,7 +49,7 @@ class CommandCollector:
 
                 self._save_module(module_path, data)
                 print(f"命令已更新到模块 [{module}]")
-                return
+                return True
         
         data.append({
             "command": command,

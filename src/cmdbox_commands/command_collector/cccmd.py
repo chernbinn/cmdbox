@@ -1,7 +1,29 @@
 import argparse
 import os
+import sys
 from pathlib import Path
 from cmdbox_commands.command_collector.CommandCollector import CommandCollector
+
+def _multiline_arg(arg):
+    """处理多行字符串参数，支持三引号格式和普通字符串"""
+    if arg is None:
+        return None    
+    # 去掉PowerShell的 >> 前缀（每行开头的 >> 和空格）
+    arg = arg.strip()
+    lines = arg.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        # 去掉每行开头的 >> 和空格
+        stripped = line.strip()
+        if stripped.startswith('>>'):
+            stripped = stripped[2:]
+        cleaned_lines.append(stripped.strip())
+    arg = ('\n'.join(cleaned_lines)).strip()
+
+    if (arg[0] == "'" and arg[-1] == "'") or (arg[0] == '"' and arg[-1] == '"'):
+        # 去除首尾引号
+        arg = arg[1:-1].strip()
+    return arg
 
 class CustomHelpFormatter(argparse.HelpFormatter):
     def __init__(self, prog, indent_increment=2, max_help_position=24, width=None):
@@ -139,61 +161,71 @@ def setup_main_parser():
     return parser
 
 def main():
-    #import sys
-    #print("cccmd.py使用的库路径:", [p for p in sys.path if 'site-packages' in p])
-    storage_dir = os.environ.get("CCCMD_DB", os.fspath(Path.home() / ".cmdbox" / "command_collector"))
-    # print("---+++ storage_dir:", storage_dir)
-    collector = CommandCollector(storage_dir) 
-    
-    parser = setup_main_parser()
-    args = parser.parse_args()
+    try:
+        #import sys
+        #print("cccmd.py使用的库路径:", [p for p in sys.path if 'site-packages' in p])
+        storage_dir = os.environ.get("CCCMD_DB", os.fspath(Path.home() / ".cmdbox" / "command_collector"))
+        # print("---+++ storage_dir:", storage_dir)
+        collector = CommandCollector(storage_dir) 
+        
+        parser = setup_main_parser()
+        args = parser.parse_args()
 
-    if args.storage:
-        print(f"当前 STORAGE_DIR 配置路径: {storage_dir}")
-        return
-    
-    if args.version:
-        try:
-            from cmdbox.cmdbox import _version
-            _version()
-        except:
-            import traceback
-            traceback.print_exc()
-            print("cmdbox version 0.0.0")
-        return
+        if args.storage:
+            print(f"当前 STORAGE_DIR 配置路径: {storage_dir}")
+            return
+        
+        if args.version:
+            try:
+                from cmdbox.cmdbox import _version
+                _version()
+            except:
+                import traceback
+                traceback.print_exc()
+                print("cmdbox version 0.0.0")
+            return
 
-    if not args.action:
-        parser.print_help()
-        return
+        if not args.action:
+            parser.print_help()
+            return
 
-    if args.action == "add":
-        collector.add_command(args.module, args.command, args.description)
-    
-    elif args.action == "modify":
-        collector.modify_command(args.module, args.index, args.command, args.description)
-        collector.list_commands(args.module)
-    elif args.action == "del":
-        res = collector.delete_command(args.module, args.index)
-        if res:
-            if args.index is not None:
-                collector.list_commands(args.module)
-            #else:
-            #    collector.list_modules()
-
-    elif args.action == "modules":
-        collector.list_modules()
-    elif args.action == "list":
-        if args.module:  # 如果指定了模块
+        if args.action == "add":
+            # 处理每个命令和描述参数，支持三引号多行格式
+            # print(f"add command: {repr(args.command)}")
+            # print(f"add description: {repr(args.description)}")
+            commands = [_multiline_arg(c) for c in args.command]
+            descriptions = [_multiline_arg(d) for d in args.description]
+            collector.add_command(args.module, commands, descriptions)
+        
+        elif args.action == "modify":
+            collector.modify_command(args.module, args.index, args.command, args.description)
             collector.list_commands(args.module)
-        else:  # 如果没有指定模块
-            collector.list_modules()
-    elif args.action == "search":
-        # 添加对模块的支持
-        results = collector.search_commands(args.keyword, args.module)
-        for module, commands in results.items():
-            print(f"\n模块 [{module}]:")
-            for cmd in commands:
-                print(f"{cmd['command']: <30} # {cmd['description']}")
+        elif args.action == "del":
+            res = collector.delete_command(args.module, args.index)
+            if res:
+                if args.index is not None:
+                    collector.list_commands(args.module)
+                #else:
+                #    collector.list_modules()
 
-if __name__ == "__main__":
-    main()
+        elif args.action == "modules":
+            collector.list_modules()
+        elif args.action == "list":
+            if args.module:  # 如果指定了模块
+                collector.list_commands(args.module)
+            else:  # 如果没有指定模块
+                collector.list_modules()
+        elif args.action == "search":
+            # 添加对模块的支持
+            results = collector.search_commands(args.keyword, args.module)
+            for module, commands in results.items():
+                print(f"\n模块 [{module}]:")
+                for cmd in commands:
+                    print(f"{cmd['command']: <30} # {cmd['description']}")
+    except KeyboardInterrupt:
+        print("\nCtrl+C")
+        sys.exit(0)
+
+if __name__ == "__main__":    
+    sys.exit(main())
+    
