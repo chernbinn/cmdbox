@@ -72,8 +72,8 @@ def setup_main_parser():
         usage="cccmd add [-h|--help] module -c COMMAND -d DESCRIPTION"
     )
     add_parser.add_argument('module', help='目标模块名称')
-    add_parser.add_argument('-c', '--command', required=True, help='命令内容')
-    add_parser.add_argument('-d', '--description', required=True, help='命令描述信息')
+    add_parser.add_argument('-c', '--command', action='append', required=True, help='命令内容（可多次使用）')
+    add_parser.add_argument('-d', '--description', action='append', required=True, help='命令描述信息（可多次使用）')
     add_parser.add_argument('-h', '--help', action='help', help='显示此帮助信息')
 
     # modify命令

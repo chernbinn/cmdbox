@@ -16,10 +16,22 @@ class CommandCollector:
     def _get_module_path(self, module: str) -> Path:
         return self.storage_dir / f"{module}.json"
 
-    def add_command(self, module: str, command: str, description: str):
-        """添加命令到指定模块"""
+    def add_command(self, module: str, command, description):
+        """添加命令到指定模块
+        
+        Args:
+            module: 模块名称
+            command: 命令内容（支持多个命令，用换行分隔）
+            description: 命令描述（支持多个描述，用换行分隔）
+        """
         module_path = self._get_module_path(module)
         data = self._load_module(module_path)
+        
+        # 如果command或description是列表，则用换行连接
+        if isinstance(command, list):
+            command = '\n'.join(command)
+        if isinstance(description, list):
+            description = '\n'.join(description)
             
         # 找到并替换
         for idx, cmd in enumerate(data):
@@ -29,7 +41,7 @@ class CommandCollector:
                 confirm = input(f"是否覆盖模块 [{module}] 中的命令 [{command}] 吗？(y/n): ")
                 if confirm.lower()!= 'y':
                     print("取消添加")
-                    return False
+                    return
                 data[idx] = {
                     "command": command,
                     "description": description
@@ -37,7 +49,7 @@ class CommandCollector:
 
                 self._save_module(module_path, data)
                 print(f"命令已更新到模块 [{module}]")
-                return True
+                return
         
         data.append({
             "command": command,
