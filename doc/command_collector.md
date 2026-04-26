@@ -14,6 +14,26 @@
 ```bash
 cccmd add <模块名> -c "<命令>" -d "<描述>"
 ```
+支持选项重复使用以实现多行命令和多行描述，例如：
+```
+# 重复选项实现多行输入
+cccmd add git -c "git push origin -tags" -c "git push origin 1.0.0" -d "推送所有tag到远程仓库" -d "推送本地tag 1.0.0到远程仓库"
+
+# 一次输入多行命令和多行描述
+cccmd add test -c """
+test
+这是一个测试命令
+""" -d """
+test
+这是一个测试命令
+"""
+
+# 混合使用重复选项和一次输入多行命令和多行描述
+cccmd add test -c """
+test
+这是一个测试命令
+""" -d "test" -d "这是一个测试命令"
+```
 
 ### 删除命令
 ```bash
