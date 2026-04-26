@@ -519,7 +519,7 @@ def is_development_mode():
 
     return True
 
-def main():
+def cli():
     _ensure_db_dir()
     if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):
         print("Usage:")
@@ -650,5 +650,12 @@ def main():
     else:
         run_git_command(sys.argv[1:])
 
+def main():
+    try:
+        cli()
+    except KeyboardInterrupt:
+        print("\nCtrl+C")
+        sys.exit(0)
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

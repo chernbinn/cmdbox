@@ -5,6 +5,7 @@ except:
     __version__ = "0.0.0"
 
 import click
+import sys
 from importlib.metadata import entry_points
 from pathlib import Path
 """
@@ -89,7 +90,12 @@ def _version():
 
 
 def main():
-    cli()
+    try:
+        cli()
+    except KeyboardInterrupt:
+        print("\nCtrl+C")
+        sys.exit(0)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
+

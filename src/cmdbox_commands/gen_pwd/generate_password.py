@@ -2,6 +2,7 @@ import random
 import string
 import click
 import time
+import sys
 
 @click.command(help='生成由数字、字符、特殊字符组成的密码')
 @click.option('-l', '--length', default=6, show_default=True, help='密码长度。')
@@ -103,7 +104,11 @@ def generate_password(length, number, special, ascii, upper, lower,
     click.echo(password)
 
 def cli():
-    generate_password()
+    try:
+        generate_password()
+    except KeyboardInterrupt:
+        print("\nCtrl+C")
+        sys.exit(0)
 
 if __name__ == '__main__':
-    cli()
+    sys.exit(cli())

@@ -1,4 +1,5 @@
 import os
+import sys
 import click
 from pathlib import Path
 from cmdbox_commands.cmd_register.cmd_register import CmdResiter
@@ -25,20 +26,24 @@ def main(ctx, show_version, debug, show_path):
     把不能通过命令行打开的工具注册为命令行打开的工具，通过命令行打开。
     把复杂的命令注册为简单的命令。
     """
-    if show_version:
-        from cmdbox.cmdbox import _version
-        _version()
-        return
-    if show_path:
-        click.echo(cmd_register.cmd_register_toml.parent)
-        return
-    if debug:
-        click.echo('调试模式')
-        os.environ['CMD_REGISTER_DEBUG'] = '1'
-    # 输出help内容
-    if ctx.invoked_subcommand == None:
-        click.echo(main.get_help(ctx))
-        return
+    try:
+        if show_version:
+            from cmdbox.cmdbox import _version
+            _version()
+            return
+        if show_path:
+            click.echo(cmd_register.cmd_register_toml.parent)
+            return
+        if debug:
+            click.echo('调试模式')
+            os.environ['CMD_REGISTER_DEBUG'] = '1'
+        # 输出help内容
+        if ctx.invoked_subcommand == None:
+            click.echo(main.get_help(ctx))
+            return
+    except KeyboardInterrupt:
+        print("\nCtrl+C")
+        sys.exit(0)
 
 @main.command("add")
 @click.argument('alias')
@@ -149,9 +154,4 @@ def sync(strategy, project_name = None):
             traceback.print_exc()
 
 if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        print('KeyboardInterrupt')
-        #cleanup()
-        sys.exit(0)
+    sys.exit(main())

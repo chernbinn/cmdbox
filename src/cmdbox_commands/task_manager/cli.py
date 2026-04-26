@@ -1,4 +1,5 @@
 import click
+import sys
 from pathlib import Path
 from cmdbox_commands.task_manager.manager import TaskManager
 
@@ -10,13 +11,17 @@ from cmdbox_commands.task_manager.manager import TaskManager
 @click.option('--path', 'show_path', is_flag=True, help='获取配置文件路径')
 def cli(show_version, show_path):
     """任务管理命令行工具"""
-    if show_version:
-        from cmdbox.cmdbox import _version
-        _version()
-    if show_path:
-        manager = TaskManager()
-        click.echo(Path(manager.db_file).parent)
-        return
+    try:
+        if show_version:
+            from cmdbox.cmdbox import _version
+            _version()
+        if show_path:
+            manager = TaskManager()
+            click.echo(Path(manager.db_file).parent)
+            return
+    except KeyboardInterrupt:
+        print("\nCtrl+C")
+        sys.exit(0)
 
 @cli.command()
 @click.argument('command')
@@ -107,4 +112,4 @@ def kill(task_id):
         click.echo(f"Error: {e}", err=True)
 
 if __name__ == '__main__':
-    cli()
+    sys.exit(cli())
