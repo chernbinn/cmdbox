@@ -61,7 +61,7 @@ class PyprojectToml(BaseModel):
 
     def __setuptools_version(self):
         return subprocess.run(
-            f'pip show setuptools', 
+            f'python -m pip show setuptools', 
             shell=True, 
             capture_output=True, 
             text=True).stdout.strip().splitlines()[1].split(' ')[1]
