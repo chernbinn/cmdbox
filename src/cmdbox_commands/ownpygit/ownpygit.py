@@ -258,7 +258,8 @@ def cp_file(file_path, module:str=None, dst_path=None)->bool:
             print(f"[ownpygit] 文件已拷贝: {src} -> {dst}")
             return True
         else:
-            shutil.copytree(src, dst)
+            # 覆盖目标目录内容
+            shutil.copytree(src, dst, dirs_exist_ok=True)
             print(f"[ownpygit] 目录已拷贝: {src} -> {dst}")
             return True
     except Exception as e:
