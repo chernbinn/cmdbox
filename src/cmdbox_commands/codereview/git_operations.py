@@ -1,8 +1,7 @@
-#!/usr/bin/env python
 """Git 操作模块"""
 
 import subprocess
-from logger import logger
+from .logger import logger
 
 def run_cmd(cmd, capture_output=True, text=True):
     """运行命令"""

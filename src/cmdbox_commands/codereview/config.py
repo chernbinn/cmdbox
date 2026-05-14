@@ -1,9 +1,8 @@
-#!/usr/bin/env python
 """配置管理模块"""
 
 import json
 from pathlib import Path
-from logger import logger
+from .logger import logger
 
 CONFIG_BASE = Path.home() / ".gerrit_review"
 
@@ -107,3 +106,10 @@ def reset_config(project_name):
         logger.info(f"已重置项目 {project_name} 的配置")
     else:
         logger.info(f"项目 {project_name} 没有配置可重置")
+
+def list_projects():
+    """列出所有项目"""
+    for json_file in CONFIG_BASE.glob("*.json"):
+        if json_file.is_file():          # 确保是文件，而非同名目录
+            project_name = json_file.stem  # 自动去除最后一个后缀
+            logger.info(project_name)

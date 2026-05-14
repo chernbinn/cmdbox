@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """代码审查工具 - 同步上游分支到 Gerrit 审核分支"""
 
 import logging
