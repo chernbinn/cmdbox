@@ -10,6 +10,10 @@ CONFIG_BASE = Path.home() / ".gerrit_review"
 # False: 默认 squash方式 合入 merge commit
 LINEARIZE_MERGE_FEATURE = False
 
+def get_config_dir():
+    """获取配置目录"""
+    return CONFIG_BASE.resolve()
+
 def get_config_file(project_name):
     """获取配置文件路径"""
     CONFIG_BASE.mkdir(parents=True, exist_ok=True)

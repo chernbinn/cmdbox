@@ -1,6 +1,7 @@
 """代码审查工具 - 同步上游分支到 Gerrit 审核分支"""
 
 import click
+import os
 from .logger import logger
 from .config import (
     load_config,
@@ -10,21 +11,40 @@ from .config import (
     list_projects as config_list_projects,
     add_config as config_add,
     del_config as config_del,
+    get_config_dir,
     run_wizard,
 )
 from .sync import sync_project
 from .analyze import analyze_commit
 from . import git_operations as git_ops
 
-@click.group()
-def cli():
+@click.group(
+    invoke_without_command=True,
+    epilog='codereview COMMAND --help，查看子命令更多帮助',
+)
+@click.option('--log-level', 'log_level', default='INFO', type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR']), help='日志级别')
+@click.option('--path', 'show_path', is_flag=True, help='获取配置文件路径')
+@click.pass_context
+def cli(ctx, log_level, show_path):
     """代码审查工具 - 同步上游分支到 Gerrit 审核分支"""
-    pass
+    if log_level:
+        os.environ['CODEREVIEW_LOG_LEVEL'] = log_level
+
+    if show_path:
+        click.echo(get_config_dir())
+        return
+
+    # 输出help内容
+    if ctx.invoked_subcommand == None:
+        click.echo(cli.get_help(ctx))
+        return
 
 # ---------------------------------
 # config command group
 # ---------------------------------
-@cli.group('config')
+@cli.group('config',
+    epilog='codereview config COMMAND --help，查看子命令更多帮助',
+)
 def config_group():
     """配置管理命令"""
     pass
