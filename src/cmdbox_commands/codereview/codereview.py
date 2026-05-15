@@ -48,6 +48,22 @@ def config_show_state_cmd(project):
     """显示项目同步状态"""
     _show_state(project)
 
+def _show_state(project_name):
+    """显示同步状态"""
+    import os
+    
+    project_config = load_config(project_name)
+    if not project_config:
+        logger.info(f"项目 {project_name} 没有配置")
+        return
+    
+    os.chdir(project_config['repo_path'])
+    last_synced = git_ops.get_last_synced_commit(project_config['target_branch'])
+    if last_synced:
+        logger.info(f"上次同步的 commit: {last_synced}")
+    else:
+        logger.info(f"没有找到同步状态")
+
 @config_group.command('list')
 def config_list_cmd():
     """显示所有项目"""
@@ -70,22 +86,6 @@ def sync_cmd(project):
         sync_project(project_config)
     except Exception as e:
         logger.error(f"同步失败: {e}")
-
-def _show_state(project_name):
-    """显示同步状态"""
-    import os
-    
-    project_config = load_config(project_name)
-    if not project_config:
-        logger.info(f"项目 {project_name} 没有配置")
-        return
-    
-    os.chdir(project_config['repo_path'])
-    last_synced = git_ops.get_last_synced_commit(project_config['target_branch'])
-    if last_synced:
-        logger.info(f"上次同步的 commit: {last_synced}")
-    else:
-        logger.info(f"没有找到同步状态")
 
 @cli.command('analyze')
 @click.argument('commit_hash')

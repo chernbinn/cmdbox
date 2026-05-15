@@ -24,6 +24,11 @@ def sync_project(project_config):
         if not git_ops.is_git_available():
             logger.error("错误: git 命令不可用")
             return False
+
+        # 检查根目录是否存在.git目录
+        if not os.path.exists(".git"):
+            logger.error(f"错误: 项目根目录 {repo_path} 下不存在.git目录，非git仓库")
+            return False
         
         # 输出项目信息
         logger.info(f"\n项目: {os.path.basename(repo_path)}")

@@ -43,23 +43,23 @@ def run_wizard(project_name):
     """配置向导"""
     import click
     
-    logger.info(f"\n向导: 创建新项目配置")
+    logger.info(f"\n向导: 创建新项目配置，按Enter键使用默认值")
     logger.info("-" * 40)
     
     config = get_default_config(project_name)
     
-    repo_path = click.prompt(f"项目根路径", default=config['repo_path'])
+    repo_path = click.prompt(f"项目根路径，当前默认值:", default=config['repo_path'])
     if not repo_path:
         logger.error("错误: 仓库路径不能为空")
         return None
     config['repo_path'] = repo_path
     
-    config['upstream_remote'] = click.prompt(f"上游远程仓库", default=config['upstream_remote'])
-    config['remote_branch'] = click.prompt(f"上游分支", default=config['remote_branch'])
-    config['track_branch'] = click.prompt(f"本地追踪分支", default=config['track_branch'])
-    config['target_branch'] = click.prompt(f"目标分支", default=config['target_branch'])
-    config['gerrit_remote'] = click.prompt(f"Gerrit远程仓库", default=config['gerrit_remote'])
-    config['gerrit_branch'] = click.prompt(f"Gerrit分支", default=config['gerrit_branch'])
+    config['upstream_remote'] = click.prompt(f"上游远程仓库，当前默认值", default=config['upstream_remote'])
+    config['remote_branch'] = click.prompt(f"上游分支，当前默认值", default=config['remote_branch'])
+    config['track_branch'] = click.prompt(f"本地追踪分支，当前默认值", default=config['track_branch'])
+    config['target_branch'] = click.prompt(f"目标分支，当前默认值", default=config['target_branch'])
+    config['gerrit_remote'] = click.prompt(f"Gerrit远程仓库，当前默认值", default=config['gerrit_remote'])
+    config['gerrit_branch'] = click.prompt(f"Gerrit分支，当前默认值", default=config['gerrit_branch'])
     
     save_config(project_name, config)
     logger.info(f"\n配置已保存到 {get_config_file(project_name)}")
