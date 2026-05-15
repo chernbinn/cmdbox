@@ -8,6 +8,8 @@ from .config import (
     set_config as config_set,
     reset_config as config_reset,
     list_projects as config_list_projects,
+    add_config as config_add,
+    del_config as config_del,
     run_wizard,
 )
 from .sync import sync_project
@@ -19,10 +21,25 @@ def cli():
     """代码审查工具 - 同步上游分支到 Gerrit 审核分支"""
     pass
 
+# ---------------------------------
+# config command group
+# ---------------------------------
 @cli.group('config')
 def config_group():
     """配置管理命令"""
     pass
+
+@config_group.command('add')
+@click.argument('project')
+def config_add_cmd(project):
+    """添加新项目配置（交互式向导）"""
+    config_add(project)
+
+@config_group.command('del')
+@click.argument('project')
+def config_del_cmd(project):
+    """删除项目配置"""
+    config_del(project)
 
 @config_group.command('show')
 @click.argument('project')
@@ -69,6 +86,9 @@ def config_list_cmd():
     """显示所有项目"""
     config_list_projects()
 
+# ---------------------------------
+# commands
+# ---------------------------------
 @cli.command('sync')
 @click.argument('project')
 def sync_cmd(project):
@@ -80,12 +100,13 @@ def sync_cmd(project):
         project_config = run_wizard(project)
         if not project_config:
             return
-    
+
     # 执行同步
     try:
         sync_project(project_config)
     except Exception as e:
         logger.error(f"同步失败: {e}")
+        logger.exception(e)
 
 @cli.command('analyze')
 @click.argument('commit_hash')

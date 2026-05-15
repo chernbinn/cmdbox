@@ -3,9 +3,22 @@
 import subprocess
 from .logger import logger
 
-def run_cmd(cmd, capture_output=True, text=True):
+# 完整长度的 commit hash 长度
+# COMMIT_HASH_LEN = None
+# 短长度的 commit hash 长度
+COMMIT_HASH_LEN = 7
+
+def run_cmd(cmd, capture_output=True, text=True, input=None):
     """运行命令"""
-    result = subprocess.run(cmd, shell=True, capture_output=capture_output, text=text)
+    logger.info(f"git COMMAND: {cmd}")
+    logger.debug(f"input: {input}")
+    result = subprocess.run(cmd, 
+                    shell=True, 
+                    capture_output=capture_output, 
+                    text=text, 
+                    encoding='utf-8', 
+                    input=input
+                )
     return result
 
 def get_parent_count(commit):
@@ -17,18 +30,34 @@ def get_parent_count(commit):
     parts = output.split()
     return len(parts) - 1
 
+def get_parents(commit):
+    """返回 (first_parent, second_parent) 元组，非 merge commit 的 second_parent 为 None"""
+    result = run_cmd(f"git log -1 --pretty=%P {commit}")
+    if result.returncode != 0:
+        return None, None
+    parts = result.stdout.strip().split()
+    if len(parts) == 0:
+        return None, None
+    first = parts[0]
+    second = parts[1] if len(parts) > 1 else None
+    return first[:COMMIT_HASH_LEN], second and second[:COMMIT_HASH_LEN]
+
 def get_first_parent(commit):
-    """获取第一个父节点"""
+    """获取第一个父节点
+    deprecated: 请使用 get_parents 获取 commit 的所有父节点
+    """
+    logger.warning(f"deprecated: 请使用 get_parents 获取 commit 的所有父节点\n在windows环境下把^1解析错误导致返回结果错误情况")
     result = run_cmd(f"git rev-parse {commit}^1")
+    logger.debug(f"result: {result}")
     if result.returncode == 0:
-        return result.stdout.strip()
+        return result.stdout.strip()[:COMMIT_HASH_LEN]
     return None
 
 def get_second_parent(commit):
     """获取第二个父节点"""
     result = run_cmd(f"git rev-parse {commit}^2")
     if result.returncode == 0:
-        return result.stdout.strip()
+        return result.stdout.strip()[:COMMIT_HASH_LEN]
     return None
 
 def is_empty_merge(commit, parent1):
@@ -43,11 +72,15 @@ def has_conflict_resolution(commit, parent1, parent2):
     real_tree = run_cmd(f"git rev-parse {commit}^{{tree}}").stdout.strip()
     return auto_tree != real_tree
 
-def get_sub_commits(parent1, parent2):
+def get_parent_sub_commits(start_point, end_point):
     """获取子分支提交列表（正向顺序）"""
-    result = run_cmd(f"git rev-list --reverse {parent1}..{parent2}")
+    # 只获取主链上的提交
+    # git rev-list --reverse --first-parent $P1..$P2
+    # 从 $P1 到 $P2 的所有提交，包含merge引入的提交记录
+    # git rev-list --reverse {parent1}..{parent2}
+    result = run_cmd(f"git rev-list --reverse --first-parent {start_point}..{end_point}")
     if result.returncode == 0:
-        return [c for c in result.stdout.strip().split('\n') if c]
+        return [c[:COMMIT_HASH_LEN] for c in result.stdout.strip().split('\n') if c]
     return []
 
 def get_commit_message(commit):
@@ -61,7 +94,7 @@ def get_latest_commit(branch):
     """获取分支的最新提交"""
     result = run_cmd(f"git rev-parse {branch}")
     if result.returncode == 0:
-        return result.stdout.strip()
+        return result.stdout.strip()[:COMMIT_HASH_LEN]
     return None
 
 def cherry_pick_commit(commit):
@@ -69,15 +102,29 @@ def cherry_pick_commit(commit):
     result = run_cmd(f"git cherry-pick -n {commit}")
     return result.returncode == 0
 
+def is_exist_commit(commit):
+    """检查提交是否存在"""
+    result = run_cmd(f"git rev-parse --verify {commit}")
+    return result.returncode == 0
+
+def is_ancestor(ancestor, descendant):
+    """检查是否为祖先"""
+    result = run_cmd(f"git merge-base --is-ancestor {ancestor} {descendant}")
+    return result.returncode == 0
+
 def commit_with_message(message):
     """用指定消息提交"""
     result = run_cmd(f"git commit -F -", input=message)
+    if result.returncode != 0:
+        logger.error(f"git commit 失败，返回码: {result.returncode}, stderr: {result.stderr}")
+        return False
     return result.returncode == 0
 
 def squash_merge_commit(commit):
     """squash merge commit"""
     result = run_cmd(f"git read-tree --reset -u {commit}")
-    if result.returncode != 0:
+    if result.returncode != 0:        
+        logger.error(f"git read-tree 失败，返回码: {result.returncode}, stderr: {result.stderr}")
         return False
     message = get_commit_message(commit)
     return commit_with_message(message)
@@ -96,9 +143,11 @@ def is_workdir_clean():
 
 def get_merge_base(branch1, branch2):
     """获取两个分支的共同祖先"""
+    # 只从主链上计算共同祖先
+    # base=$(git merge-base $(git rev-list --first-parent -1 branch1) branch2)
     result = run_cmd(f"git merge-base {branch1} {branch2}")
     if result.returncode == 0:
-        return result.stdout.strip()
+        return result.stdout.strip()[:COMMIT_HASH_LEN]
     return None
 
 def get_last_synced_commit(target_branch):
@@ -119,7 +168,7 @@ def get_new_commits(from_commit, to_branch):
     """获取从from_commit到to_branch的新提交（正向顺序）"""
     result = run_cmd(f"git rev-list --reverse --first-parent {from_commit}..{to_branch}")
     if result.returncode == 0:
-        return [c for c in result.stdout.strip().split('\n') if c]
+        return [c[:COMMIT_HASH_LEN] for c in result.stdout.strip().split('\n') if c]
     return []
 
 def checkout_branch(branch):
@@ -129,10 +178,13 @@ def checkout_branch(branch):
 
 def pull_branch(remote, branch):
     """拉取远程分支"""
-    result = run_cmd(f"git pull {remote} {branch}")
+    result = run_cmd(f"git pull {remote} {branch}")    
+    logger.info(f"{result.stdout.strip()}")
+    logger.info("拉取完成")
     return result.returncode == 0
 
 def is_git_available():
     """检查 git 是否可用"""
     result = run_cmd("git --version")
+    logger.info(f"{result.stdout.strip()}")
     return result.returncode == 0

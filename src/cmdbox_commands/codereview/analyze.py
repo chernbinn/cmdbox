@@ -13,8 +13,9 @@ def analyze_commit(commit_hash):
         logger.info("类型: 普通提交")
     elif parent_count >= 2:
         logger.info("类型: Merge commit")
-        p1 = git_ops.get_first_parent(commit_hash)
-        p2 = git_ops.get_second_parent(commit_hash)
+        p1, p2 = git_ops.get_parents(commit_hash)
+        # p1 = git_ops.get_first_parent(commit_hash)
+        # p2 = git_ops.get_second_parent(commit_hash)
         logger.info(f"父节点1: {p1}")
         logger.info(f"父节点2: {p2}")
         
