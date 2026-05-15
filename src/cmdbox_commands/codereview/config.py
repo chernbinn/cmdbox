@@ -5,6 +5,10 @@ from pathlib import Path
 from .logger import logger
 
 CONFIG_BASE = Path.home() / ".gerrit_review"
+# 开关：是否线性化展开 merge commit
+# True: 可配置展开深度
+# False: 默认 squash方式 合入 merge commit
+LINEARIZE_MERGE_FEATURE = False
 
 def get_config_file(project_name):
     """获取配置文件路径"""
@@ -37,7 +41,7 @@ def get_default_config(project_name):
         "target_branch": f"gerrit-main",
         "gerrit_remote": "gerrit",
         "gerrit_branch": f"custom",
-        "max_merge_depth": -1
+        "max_merge_depth": 0
     }
 
 def run_wizard(project_name):
@@ -61,14 +65,15 @@ def run_wizard(project_name):
     config['target_branch'] = click.prompt(f"目标分支，当前默认值", default=config['target_branch'])
     config['gerrit_remote'] = click.prompt(f"Gerrit远程仓库，当前默认值", default=config['gerrit_remote'])
     config['gerrit_branch'] = click.prompt(f"Gerrit分支，当前默认值", default=config['gerrit_branch'])
-    prompt_text = (
-        f"\n展开子链 merge commit 的最大深度（当前默认值 {config['max_merge_depth']}）\n"
-        "  -1: 全部线性化展开 merge commit\n"
-        "   0: 全部 squash方式 合入 merge commit\n"
-        "  其他值: 展开深度超过最大深度时, squash方式 合入 merge commit\n"
-        "请输入："
-    )
-    config['max_merge_depth'] = click.prompt(prompt_text, default=config['max_merge_depth'])
+    if LINEARIZE_MERGE_FEATURE:
+        prompt_text = (
+            f"\n展开子链 merge commit 的最大深度（当前默认值 {config['max_merge_depth']}）\n"
+            "  -1: 全部线性化展开 merge commit\n"
+            "   0: 全部 squash方式 合入 merge commit\n"
+            "  其他值: 展开深度超过最大深度时, squash方式 合入 merge commit\n"
+            "请输入："
+        )
+        config['max_merge_depth'] = click.prompt(prompt_text, default=config['max_merge_depth'])
 
     save_config(project_name, config)
     logger.info(f"\n配置已保存到 {get_config_file(project_name)}")

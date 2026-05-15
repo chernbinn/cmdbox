@@ -43,6 +43,7 @@ ownpygit = "cmdbox_commands.ownpygit.ownpygit:main"
 cccmd = "cmdbox_commands.command_collector.cccmd:main"
 genpwd = "cmdbox_commands.gen_pwd.generate_password:cli"
 codereview = "cmdbox_commands.codereview.codereview:cli"
+cr = "cmdbox_commands.codereview.codereview:cli"
 # pycompare = "cmdbox_commands.pycompare.pycompare:cli"
 
 #[project.gui-scripts]

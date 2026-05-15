@@ -11,7 +11,8 @@ COMMIT_HASH_LEN = 7
 def run_cmd(cmd, capture_output=True, text=True, input=None):
     """运行命令"""
     logger.info(f"git COMMAND: {cmd}")
-    logger.debug(f"input: {input}")
+    if input:
+        logger.debug(f"input: {input}")
     result = subprocess.run(cmd, 
                     shell=True, 
                     capture_output=capture_output, 
@@ -188,3 +189,10 @@ def is_git_available():
     result = run_cmd("git --version")
     logger.info(f"{result.stdout.strip()}")
     return result.returncode == 0
+
+def get_upstream_remote(upstream):
+    """获取上游远程"""
+    result = run_cmd(f"git remote get-url {upstream}")
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return None

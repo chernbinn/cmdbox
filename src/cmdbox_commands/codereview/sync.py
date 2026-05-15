@@ -22,7 +22,7 @@ def sync_project(project_config):
 
     global linear_merge_depth, MAX_MERGE_DEPTH, TRACK_BRANCH
     linear_merge_depth = 0
-    MAX_MERGE_DEPTH = project_config.get('max_merge_depth', -1)
+    MAX_MERGE_DEPTH = project_config.get('max_merge_depth', 0)
     TRACK_BRANCH = track_branch
     
     # 切换到仓库目录
@@ -63,41 +63,51 @@ def sync_project(project_config):
             logger.info(f"\n上次同步的commit: {last_synced}")
         
         # 询问是否更新本地追踪分支
-        pull_choice = click.prompt(f"更新本地 {track_branch} 分支 (git pull)?", default="Y")
-        if pull_choice.upper() != "N":
-            logger.info(f"正在从 {upstream_remote}/{remote_branch} 更新 {track_branch}...")
-            if git_ops.checkout_branch(track_branch):
-                # 检查当前分支                
-                if not _handle_ensure_branch(track_branch):
-                    return False
-                
-                if not git_ops.pull_branch(upstream_remote, remote_branch):
-                    logger.warning(f"警告: git pull 失败，本地分支可能已过时")
-            else:
-                logger.warning(f"警告: 切换到 {track_branch} 失败")
+        if _is_github_repo(upstream_remote):            
+            logger.info(f"注意: GitHub 仓库实时网络较差，跳过执行 pull 命令\n")
+        else:
+            pull_choice = click.prompt(f"更新本地 {track_branch} 分支 (git pull)?", default="Y")
+            if pull_choice.upper() != "N":
+                logger.info(f"正在从 {upstream_remote}/{remote_branch} 更新 {track_branch}...")
+                if git_ops.checkout_branch(track_branch):
+                    # 检查当前分支                
+                    if not _handle_ensure_branch(track_branch):
+                        return False
+                    
+                    if not git_ops.pull_branch(upstream_remote, remote_branch):
+                        logger.warning(f"警告: git pull 失败，本地分支可能已过时")
+                else:
+                    logger.warning(f"警告: 切换到 {track_branch} 失败")
             
         if not _handle_ensure_branch(target_branch):
             return False
         
         if not _linearize_branch_chain(last_synced, track_branch):
-            return False
+            logger.info("\n没有新提交需要同步。")
+            return True
         logger.info(f"\n提示: 现在可以运行 'git push {gerrit_remote} HEAD:refs/for/{gerrit_branch}' 推送到 Gerrit 进行审核")
     
     finally:
         os.chdir(original_dir)
 
-def _linearize_branch_chain(start_point, end_point):
+def _is_github_repo(upstream):
+    """检查是否为 GitHub 仓库"""
+    upstream_url = git_ops.get_upstream_remote(upstream)
+    logger.info(f"远端仓库：{upstream_url}")
+    return upstream_url.find("github.com") != -1
+
+def _linearize_branch_chain(start_point, end_point, parent_msg=""):
     """将合并提交转换为普通提交"""    
     logger.info(f"\n当前merge深度: {linear_merge_depth}")
     logger.info("-" * ((linear_merge_depth+1) * 2))
     logger.info(f"获取从 {start_point}..{end_point} 的新提交...")        
     new_commits = git_ops.get_parent_sub_commits(start_point, end_point)
+    logger.info(f"找到 {len(new_commits)} 个新提交:")
     
     if not new_commits:
-        logger.info("没有新提交需要同步。")
-        return True
-    
-    logger.info(f"找到 {len(new_commits)} 个新提交:")
+        logger.info("=" * ((linear_merge_depth+1) * 2))
+        logger.info(f"merge深度 {linear_merge_depth}: 所有提交处理完成！")
+        return False
     for commit in new_commits:
         msg = git_ops.get_commit_message(commit)
         short_msg = msg.split('\n')[0] if msg else ""
@@ -109,23 +119,24 @@ def _linearize_branch_chain(start_point, end_point):
         logger.info(f"\n[{i}/{len(new_commits)}] 处理提交: {commit_id}")
         
         parent_count = git_ops.get_parent_count(commit_id)
-        
         # 获取完整提交消息
-        full_msg = git_ops.get_commit_message(commit_id)
-        
-        # 添加 cherry-pick 标记
-        full_msg += f"\n\ncherry picked from commit {commit_id}"
+        full_msg = git_ops.get_commit_message(commit_id)        
         if parent_count == 1:
             # 普通提交
             logger.info("  类型: 普通提交")
+            # 添加主链merge commit信息
+            if parent_msg:
+                full_msg += f"\nmerge commit: {parent_msg}"
+            # 添加 cherry-pick 标记
+            full_msg += f"\ncherry picked from commit {commit_id}"
             _handle_normal_commit(commit_id, full_msg)
             
         elif parent_count >= 2:
             # Merge commit
             logger.info("  类型: Merge commit")
-            _handle_merge_commit(commit_id, full_msg)
+            _handle_merge_commit(commit_id, full_msg, parent_msg)
     
-    logger.info("\n" + "=" * ((linear_merge_depth+1) * 2))
+    logger.info("=" * ((linear_merge_depth+1) * 2))
     logger.info(f"merge深度 {linear_merge_depth}: 所有提交处理完成！")
     return True
 
@@ -159,7 +170,7 @@ def _handle_normal_commit(commit_id, full_msg):
     
     logger.info("  成功提交，Change-Id 已添加")
 
-def _handle_merge_commit(commit_id, full_msg):
+def _handle_merge_commit(commit_id, full_msg, parent_msg=""):
     """处理 merge commit"""
     global linear_merge_depth
 
@@ -171,23 +182,34 @@ def _handle_merge_commit(commit_id, full_msg):
         logger.info("  空合并，跳过")
         return
     
+    if parent_msg:
+        full_msg += f"\nmerge commit: {parent_msg}"
+    
     if MAX_MERGE_DEPTH == 0:
         logger.info("  MAX_MERGE_DEPTH 为0，直接 squash")
+        # 添加 squash 标记
+        full_msg += f"\nsquashed from commit {commit_id}"
         _squash_commit(commit_id, full_msg)
         return
     elif git_ops.has_conflict_resolution(commit_id, p1, p2):
         # 检查是否有冲突解决
         logger.info("  有冲突合并，直接 squash")
+        # 添加 squash 标记
+        full_msg += f"\nsquashed from commit {commit_id}"
         _squash_commit(commit_id, full_msg)
         return
 
     if MAX_MERGE_DEPTH > 0 and linear_merge_depth >= MAX_MERGE_DEPTH:
         logger.info(f"  merge线性化展开超过最大深度{MAX_MERGE_DEPTH}，直接 squash")
+        # 添加 squash 标记
+        full_msg += f"\nsquashed from commit {commit_id}"
         _squash_commit(commit_id, full_msg)
         return
 
     linear_merge_depth += 1
-    _linearize_branch_chain(p1, p2)
+    # 递归处理子链
+    parent_msg += f"{commit_id} "
+    _linearize_branch_chain(p1, p2, parent_msg)
     
 def _squash_commit(commit_id, full_msg):
     """Squash 提交"""
