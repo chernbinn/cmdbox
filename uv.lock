@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11.2"
 
 [[package]]
@@ -52,11 +52,13 @@ dependencies = [
     { name = "numpy" },
     { name = "psutil" },
     { name = "pydantic" },
+    { name = "tkinterdnd2" },
     { name = "toml" },
 ]
 
 [package.optional-dependencies]
 dev = [
+    { name = "pip" },
     { name = "pre-commit" },
     { name = "setuptools-git-versioning" },
 ]
@@ -68,10 +70,12 @@ requires-dist = [
     { name = "colorama", specifier = "==0.4.6" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "numpy", specifier = ">=2.3.1" },
+    { name = "pip", marker = "extra == 'dev'", specifier = ">=26.1.1" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">4.0" },
     { name = "psutil", specifier = ">=5.8" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "setuptools-git-versioning", marker = "extra == 'dev'", specifier = ">=2.0,<3" },
+    { name = "tkinterdnd2", specifier = ">=0.4.3" },
     { name = "toml", specifier = ">=0.10.2" },
 ]
 provides-extras = ["dev"]
@@ -249,6 +253,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pip"
+version = "26.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/48/cb9b7a682f6fe01a4221e1728941dd4ac3cd9090a17db3779d6ff490b602/pip-26.1.1.tar.gz", hash = "sha256:d36762751d156a4ee895de8af39aa0abeeeb577f93a2eca6ab62467bbf0f8a78", size = 1840400, upload-time = "2026-05-04T19:02:21.248Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/eb/fea4d1d51c49832120f7f285d07306db3960f423a2612c6057caf3e8196f/pip-26.1.1-py3-none-any.whl", hash = "sha256:99cb1c2899893b075ff56e4ed0af55669a955b49ad7fb8d8603ecdaf4ed653fb", size = 1812777, upload-time = "2026-05-04T19:02:18.9Z" },
+]
+
+[[package]]
 name = "platformdirs"
 version = "4.3.8"
 source = { registry = "https://pypi.org/simple" }
@@ -423,6 +436,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f0/72/507b0b459b1fdbf5705aecbc5330c32d62dd41560718d2720bb6d94607f5/setuptools_git_versioning-2.1.0.tar.gz", hash = "sha256:6aef5b8bb1cfb953b6b343d27cbfc561d96cf2a2ee23c2e0dd3591042a059921", size = 10662, upload-time = "2025-01-10T08:47:19.582Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c0/ba/daf16c2d1965bf6237fb696639e3e93645ac6801f7dcaf9ec694a74e9326/setuptools_git_versioning-2.1.0-py3-none-any.whl", hash = "sha256:09a15cbb9a00884e91a3591a4c9ec1ff93c24b1b4a40de39a44815196beb7ebf", size = 10678, upload-time = "2025-01-10T08:47:16.941Z" },
+]
+
+[[package]]
+name = "tkinterdnd2"
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/2a/9d50ee58c7a60bf0c8d4bd8030b4afc29c8bf60158f95dbc89e8081d29d2/tkinterdnd2-0.4.3.tar.gz", hash = "sha256:03a932a11b42ab139c4552b414aa10ee8a087b8386b52baca8c62939760c2ef2", size = 444595, upload-time = "2025-02-28T12:55:50.861Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/c3/e04f004a53c00dc01126b6f998264cef672c6883c36aa4bd65845a8eb4c0/tkinterdnd2-0.4.3-py3-none-any.whl", hash = "sha256:8804f5d2e2a99713ec93e85384397fec6bf66fdf2065e3750938d55018971c4a", size = 493006, upload-time = "2025-02-28T12:55:47.501Z" },
 ]
 
 [[package]]

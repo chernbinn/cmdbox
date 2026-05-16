@@ -26,11 +26,13 @@ dependencies = [
     "pydantic>=2.11.7",
     "toml>=0.10.2",
     "chardet>=5.2.0",
+    "tkinterdnd2>=0.4.3",
 ]
 requires-python = ">=3.11.2"
 
 [project.optional-dependencies]
 dev = [
+    "pip>=26.1.1",
     "pre-commit>4.0",
     "setuptools-git-versioning>=2.0,<3",
 ]
@@ -44,10 +46,10 @@ cccmd = "cmdbox_commands.command_collector.cccmd:main"
 genpwd = "cmdbox_commands.gen_pwd.generate_password:cli"
 codereview = "cmdbox_commands.codereview.codereview:cli"
 cr = "cmdbox_commands.codereview.codereview:cli"
-# pycompare = "cmdbox_commands.pycompare.pycompare:cli"
+pycompare = "cmdbox_commands.pycompare.pycompare:cli"
 
-#[project.gui-scripts]
-#pycompare = "cmdbox_commands.pycompare.pycompare:cli"
+[project.gui-scripts]
+pycompare-gui = "cmdbox_commands.pycompare.pycompare:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
