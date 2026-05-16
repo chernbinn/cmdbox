@@ -1,6 +1,7 @@
 """Python项目管理模块"""
 
 import os
+import re
 import shutil
 import subprocess
 import click
@@ -12,8 +13,28 @@ from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, 
 from cmdbox_commands.cmd_register.config import is_debug
 from .utils import child_run, Base32V, check_command_exists
 
+# 项目名称安全模式（仅允许字母、数字、下划线和连字符）
+SAFE_PROJECT_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+
 # 排除的项目名称集合（这些项目不会被同步）
 EXCLUDED_PROJECTS = frozenset(["cmdbox"])
+
+
+def validate_project_name(project_name: str) -> bool:
+    """验证项目名称是否安全
+
+    Args:
+        project_name: 项目名称
+
+    Returns:
+        bool: 项目名称是否只包含安全字符
+
+    Note:
+        安全的项目名称只能包含字母、数字、下划线和连字符。
+        这符合 pipx 的包名规范，也是防止 shell 注入的基本保障。
+    """
+    return bool(SAFE_PROJECT_PATTERN.match(project_name))
+
 
 class Command(BaseModel):
     """命令模型"""
@@ -27,9 +48,13 @@ class Command(BaseModel):
         gui_prefix = "gui_" if self.is_gui else ""
         return f"{self.alias}_{gui_prefix}cli.py"
 
+
 class PyProject:
     def __init__(self, project_path: Union[str, Path], project_name: str):
         """初始化项目"""
+        if not validate_project_name(project_name):
+            raise ValueError(f"Invalid project name '{project_name}'. "
+                           f"Project names can only contain letters, numbers, underscores, and hyphens.")
         self.project_name = project_name
         self.project_path: Path = Path(project_path)
         self.pyproject_toml: Optional[PyprojectToml] = None
@@ -49,9 +74,8 @@ class PyProject:
         for command in commands:
             scripts.append(ScriptEntry(
                 cmd_name=command.alias,
-                #cmd_type='gui-scripts' if command.is_gui else 'scripts',
-                cmd_type='scripts',
-                cmd_entry=f'{self.project_name}.{command.src_file_name()[:-3]}:main'
+                cmd_type="scripts",
+                cmd_entry=f"{self.project_name}.{command.src_file_name()[:-3]}:main"
             ))
 
         from cmdbox.cmdbox import _version
@@ -70,33 +94,27 @@ class PyProject:
         self.pyproject_toml.save_pyprojectToml(self.project_path / "pyproject.toml")
 
     def install(self) -> None:
-        # 先卸载旧版本
+        """安装项目"""
+        if not validate_project_name(self.project_name):
+            raise ValueError(f"Invalid project name '{self.project_name}'")
+
         click.echo(f"uninstall old tools:'{self.project_name}'")
-        subprocess.run(f"pipx uninstall {self.project_name}",
-                    shell=True)
-        # 安装新版本
+        subprocess.run(["pipx", "uninstall", self.project_name])
+
         click.echo(f"install new tools:'{self.project_name}'")
-        """
-        result = subprocess.run(f'pipx install -f {self.project_path}', 
-                    shell=True, 
-                    encoding='utf-8',
-                    capture_output=True, 
-                    text=True)
-        if result.returncode != 0:
-            raise ValueError(f"install '{self.project_path}' failed")
-        else:
-            click.echo(f"install '{self.project_path}' success")
-        """
-        result = child_run(f'pipx install -f {self.project_path}', 2)
+        result = child_run(f"pipx install -f {self.project_path}", 2)
         if result.returncode != 0:
             raise ValueError(f"install '{self.project_path}' failed")
         click.echo(f"install '{self.project_path}' success")
 
     @staticmethod
     def uninstall(project_name: str) -> bool:
-        """ 卸载项目 """
-        # 检查是否存在
-        result = child_run(f'pipx runpip {project_name} show -f {project_name}')
+        """卸载项目"""
+        if not validate_project_name(project_name):
+            click.echo(f"Invalid project name '{project_name}'")
+            return False
+
+        result = child_run(f"pipx runpip {project_name} show -f {project_name}")
         if result.returncode != 0:
             click.echo(f"project '{project_name}' not exists")
             return True
@@ -133,13 +151,13 @@ class PyProject:
 
     @staticmethod
     def is_installed(alias: str, project_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
-        """ 检查自定义命令是否被安装 """
-        # pipx runpip cmdbox show -f cmdbox，当project不为None时
-        # pipx list,当project为None时
+        """检查自定义命令是否被安装"""
         if not alias:
             raise ValueError("is_installed, alias cannot be empty or None")
 
         if project_name:
+            if not validate_project_name(project_name):
+                return False, None
             command = f"pipx runpip {project_name} show -f {project_name}"
             result = child_run(command)
             if result.returncode != 0:
@@ -169,6 +187,8 @@ class PyProject:
     @lru_cache
     def get_project_commands(project_name: str) -> List[str]:
         """获取项目中的所有命令"""
+        if not validate_project_name(project_name):
+            return []
         command = f"pipx runpip {project_name} show -f {project_name}"
         result = child_run(command)
         if result.returncode != 0:
@@ -176,9 +196,8 @@ class PyProject:
         commands: List[str] = []
         if is_debug():
             click.echo(f"get_project_commands-result.stdout: {result.stdout}")
-        
-        # 根据操作系统选择合适的分隔符
-        scripts_dir = f'Scripts{os.sep}' if os.name == 'nt' else 'bin'
+
+        scripts_dir = f"Scripts{os.sep}" if os.name == "nt" else "bin"
         for line in result.stdout.splitlines():
             if scripts_dir in line:
                 if is_debug():
@@ -239,7 +258,6 @@ class PyProject:
     def _file_content(self, command: Command) -> str:
         """生成命令源代码内容"""
         from cmdbox_commands.cmd_register.py_project.generator import generator_src
-
         return generator_src(command.command, command.description, command.is_gui)
 
     @staticmethod
@@ -248,4 +266,3 @@ class PyProject:
         if string and key in string:
             return string.split(key)[1].strip()
         return None
-        
