@@ -1,24 +1,29 @@
+"""命令行接口模块"""
+
 import os
 import sys
 import click
 from pathlib import Path
-from cmdbox_commands.cmd_register.cmd_register import CmdResiter
+from typing import Optional
+from cmdbox_commands.cmd_register.cmd_register import CmdRegister
 from cmdbox_commands.cmd_register.config import is_debug
 
-CMD_REGISTER_DB = os.environ.get("CMD_REGISTER_DB", os.fspath(Path.home() / '.cmdbox' / 'cmd_register'))
-cmd_register = CmdResiter(Path(CMD_REGISTER_DB) / 'cmd_register.toml')
+# 默认配置数据库路径
+DEFAULT_CMD_REGISTER_DB = ".cmdbox/cmd_register"
+CMD_REGISTER_DB = os.environ.get("CMD_REGISTER_DB", os.fspath(Path.home() / DEFAULT_CMD_REGISTER_DB))
+cmd_register = CmdRegister(Path(CMD_REGISTER_DB) / "cmd_register.toml")
 
 @click.group(
     invoke_without_command=True,
-    epilog='cmdr COMMAND --help，查看子命令更多帮助',
+    epilog="cmdr COMMAND --help，查看子命令更多帮助",
 )
-@click.option('-v', '--version', 'show_version', is_flag=True, help='显示版本号')
-@click.option('--debug', 'debug', is_flag=True, help='调试模式')
-@click.option('--path', 'show_path', is_flag=True, help='获取配置文件路径')
+@click.option("-v", "--version", "show_version", is_flag=True, help="显示版本号")
+@click.option("--debug", "debug_flag", is_flag=True, help="调试模式")
+@click.option("--path", "show_path", is_flag=True, help="获取配置文件路径")
 @click.pass_context
-def main(ctx, show_version, debug, show_path):
+def main(ctx, show_version, debug_flag, show_path):
 
-    # hele文档按照原格式显示
+    # help文档按照原格式显示
     """
     命令注册工具，用于注册自定义命令。
 
@@ -34,9 +39,10 @@ def main(ctx, show_version, debug, show_path):
         if show_path:
             click.echo(cmd_register.cmd_register_toml.parent)
             return
-        if debug:
+        if debug_flag:
             click.echo('调试模式')
             os.environ['CMD_REGISTER_DEBUG'] = '1'
+            
         # 输出help内容
         if ctx.invoked_subcommand == None:
             click.echo(main.get_help(ctx))
@@ -46,15 +52,15 @@ def main(ctx, show_version, debug, show_path):
         sys.exit(0)
 
 @main.command("add")
-@click.argument('alias')
-@click.argument('command')
-@click.option('-g', '--gui', 'is_gui', is_flag=True, help='有图形界面工具')
-@click.option('--save-temp', 'save_temp', is_flag=True, help='保存中间临时文件')
-#@click.option('--force', 'force_install', is_flag=True, help='强制安装命令，如果命令存在则被覆盖')
-@click.option('-d', '--description', 'description', default='', help='命令描述')
-@click.option('-p', '--project', 'project_name', default='default', help='分组名称')
-def register(alias: str, command: str, is_gui: bool = False, 
-            description: str = '', project_name = 'default', 
+@click.argument("alias")
+@click.argument("command")
+@click.option("-g", "--gui", "is_gui", is_flag=True, help="有图形界面工具")
+@click.option("--save-temp", "save_temp", is_flag=True, help="保存中间临时文件")
+@click.option("-f", "--force", "force_install", is_flag=True, help="强制安装命令，如果命令存在则被覆盖")
+@click.option("-d", "--description", "description", default="", help="命令描述")
+@click.option("-p", "--project", "project_name", default="default", help="分组名称")
+def register(alias: str, command: str, is_gui: bool = False,
+            description: str = "", project_name: str = "default",
             save_temp: bool = False, force_install: bool = False):
     """
     注册自定义命令
@@ -77,21 +83,20 @@ def register(alias: str, command: str, is_gui: bool = False,
             traceback.print_exc()
 
 @main.command()
-@click.option('-a', '--alias', 'alias', default=None, help='自定义命令名称')
-@click.option('-p', '--project', 'project_name', default=None, help='分组名称')
-def remove(alias: str = None, project_name:str = None):
-    """
-    删除自定义命令。
-    """
-    if alias == None and project_name == None:
-        click.echo('alias or project_name must be specified')
+@click.option("-a", "--alias", "alias", default=None, help="自定义命令名称")
+@click.option("-p", "--project", "project_name", default=None, help="分组名称")
+def remove(alias: Optional[str] = None, project_name: Optional[str] = None):
+    """删除自定义命令"""
+
+    if alias is None and project_name is None:
+        click.echo("alias or project_name must be specified")
         return
     try:
         res = cmd_register.remove(alias, project_name)
         if res:
             click.echo(f"删除自定义命令或命令集成功: {alias if alias else project_name}")
         else:
-            click.echo(f"删除自定义命令或命令集失败。")
+            click.echo("删除自定义命令或命令集失败。")
     except ValueError as e:
         click.echo(f"删除自定义命令或命令集失败: {str(e)}")
         if is_debug():
@@ -99,11 +104,10 @@ def remove(alias: str = None, project_name:str = None):
             traceback.print_exc()
 
 @main.command()
-@click.option('-p', '--project', 'project_name', default=None, help='分组名称')
+@click.option("-p", "--project", "project_name", default=None, help="分组名称")
 def list(project_name):
-    """
-    列出所有自定义命令。
-    """
+    """列出所有自定义命令"""
+
     try:
         cmd_register.list(project_name)
     except ValueError as e:
@@ -113,8 +117,8 @@ def list(project_name):
             traceback.print_exc()
 
 @main.command()
-@click.option('-p', '--project', 'project_name', default=None, help='分组名称')
-@click.option('-a', '--alias', 'alias', default=None, help='自定义命令名称')
+@click.option("-p", "--project", "project_name", default=None, help="分组名称")
+@click.option("-a", "--alias", "alias", default=None, help="自定义命令名称")
 def show(project_name, alias):
     """
     显示指定命令组命令或者指定命令的详细信息。没有指定命令组或命令时，显示所有自定义命令的详细信息。
@@ -128,12 +132,12 @@ def show(project_name, alias):
             traceback.print_exc()
 
 @main.command()
-@click.option('-p', '--project', 'project_name', default=None, help='分组名称')
-@click.option('-s', '--strategy', 'strategy', type=click.Choice(['configure', 'installed', 'mix'], 
-    case_sensitive=False), 
+@click.option("-p", "--project", "project_name", default=None, help="分组名称")
+@click.option("-s", "--strategy", "strategy", type=click.Choice(["configure", "installed", "mix"],
+    case_sensitive=False),
     prompt=True,
     prompt_required=False,
-    default='mix',
+    default="mix",
     help="""
     \b
     同步策略。
@@ -141,9 +145,9 @@ def show(project_name, alias):
     installed: 仅同步已安装的自定义命令，配置未配置的。
     mix:       双向同步，安装未安装的配置，并配置已安装的自定义命令（默认）
     """)
-def sync(strategy, project_name = None):
-    """
-    同步配置的自定义命令和安装的自定义命令，使配置和安装保持一致。"""
+def sync(strategy, project_name: Optional[str] = None):
+    """同步配置的自定义命令和安装的自定义命令"""
+
     try:
         click.echo(f"同步策略: {strategy}")
         cmd_register.sync(strategy, project_name)
@@ -153,5 +157,5 @@ def sync(strategy, project_name = None):
             import traceback
             traceback.print_exc()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

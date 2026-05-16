@@ -1,39 +1,50 @@
+"""Python项目管理模块"""
+
+import os
 import shutil
 import subprocess
 import click
 from pathlib import Path
 from functools import lru_cache
-from typing import Union, Optional
-from pydantic import BaseModel, field_validator
+from typing import Union, Optional, Tuple, List
+from pydantic import BaseModel
 from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, PyprojectToml
 from cmdbox_commands.cmd_register.config import is_debug
 from .utils import child_run, Base32V, check_command_exists
 
+# 排除的项目名称集合（这些项目不会被同步）
+EXCLUDED_PROJECTS = frozenset(["cmdbox"])
+
 class Command(BaseModel):
+    """命令模型"""
     alias: str
     command: str
     is_gui: bool = False
-    description: str = ''    
+    description: str = ""
 
-    def src_file_name(self):
-        return f'{self.alias}_{"gui_" if self.is_gui else ""}cli.py'
+    def src_file_name(self) -> str:
+        """获取源代码文件名"""
+        gui_prefix = "gui_" if self.is_gui else ""
+        return f"{self.alias}_{gui_prefix}cli.py"
 
 class PyProject:
     def __init__(self, project_path: Union[str, Path], project_name: str):
+        """初始化项目"""
         self.project_name = project_name
         self.project_path: Path = Path(project_path)
-        self.pyproject_toml: PyprojectToml = None
+        self.pyproject_toml: Optional[PyprojectToml] = None
 
-    def init(self, commands: list[Command]):
-        self.src_path = (self.project_path/ f'src/{self.project_name}')
+    def init(self, commands: List[Command]) -> None:
+        """初始化项目结构"""
+        self.src_path = self.project_path / f"src/{self.project_name}"
         if not self.src_path.exists():
             click.echo(f"create src path '{self.src_path}'")
             self.src_path.mkdir(parents=True)
 
-        click.echo(f"init src files")
-        self._gernerate_src(commands)
+        click.echo("init src files")
+        self._generate_src(commands)
 
-        click.echo(f"init pyproject.toml")
+        click.echo("init pyproject.toml")
         scripts = []
         for command in commands:
             scripts.append(ScriptEntry(
@@ -42,26 +53,26 @@ class PyProject:
                 cmd_type='scripts',
                 cmd_entry=f'{self.project_name}.{command.src_file_name()[:-3]}:main'
             ))
-        
+
         from cmdbox.cmdbox import _version
-        dot_count = _version().count('.')
+        dot_count = _version().count(".")
         if dot_count == 3:
-            base_version = _version().rsplit('.', 1)[0]
+            base_version = _version().rsplit(".", 1)[0]
         else:
             base_version = _version()
         click.echo(f"base_version: {base_version}")
         self.pyproject_toml = PyprojectToml(
-            project_name=self.project_name,           
+            project_name=self.project_name,
             projec_version=Base32V.encrypt_version(base_version, f"cmdr_{self.project_name}"),
             scripts=scripts
         )
-        click.echo(f"save pyproject.toml")
-        self.pyproject_toml.save_pyprojectToml(self.project_path/ 'pyproject.toml')
+        click.echo("save pyproject.toml")
+        self.pyproject_toml.save_pyprojectToml(self.project_path / "pyproject.toml")
 
-    def install(self):
+    def install(self) -> None:
         # 先卸载旧版本
         click.echo(f"uninstall old tools:'{self.project_name}'")
-        subprocess.run(f'pipx uninstall {self.project_name}', 
+        subprocess.run(f"pipx uninstall {self.project_name}",
                     shell=True)
         # 安装新版本
         click.echo(f"install new tools:'{self.project_name}'")
@@ -79,125 +90,130 @@ class PyProject:
         result = child_run(f'pipx install -f {self.project_path}', 2)
         if result.returncode != 0:
             raise ValueError(f"install '{self.project_path}' failed")
-        else:
-            click.echo(f"install '{self.project_path}' success")
+        click.echo(f"install '{self.project_path}' success")
 
     @staticmethod
-    def uninstall(project_name: str)->bool:
+    def uninstall(project_name: str) -> bool:
+        """ 卸载项目 """
         # 检查是否存在
         result = child_run(f'pipx runpip {project_name} show -f {project_name}')
         if result.returncode != 0:
             click.echo(f"project '{project_name}' not exists")
             return True
 
-        result = child_run(f'pipx uninstall {project_name}', 1)
+        result = child_run(f"pipx uninstall {project_name}", 1)
         if result.returncode != 0:
             click.echo(f"uninstall '{project_name}' failed")
             return False
-        else:
-            click.echo(f"uninstall '{project_name}' success")
+        click.echo(f"uninstall '{project_name}' success")
         return True
 
-    def clean(self):
-        # 删除项目目录
+    def clean(self) -> None:
+        """清理项目目录"""
         try:
             if self.project_path.exists():
                 shutil.rmtree(self.project_path)
-        except:
+        except Exception:
             pass
-    
+
     @staticmethod
-    def clean_by_path(path: Union[str, Path]):
+    def clean_by_path(path: Union[str, Path]) -> None:
+        """根据路径清理项目"""
         try:
             if Path(path).exists():
                 shutil.rmtree(path)
-        except:
+        except Exception:
             pass
 
-    def _gernerate_src(self, commands: list[Command]):
+    def _generate_src(self, commands: List[Command]) -> None:
+        """生成源代码文件"""
         for command in commands:
             file_name = command.src_file_name()
-            (self.src_path/ file_name).write_text(self._file_content(command), encoding='utf-8')
+            (self.src_path / file_name).write_text(self._file_content(command), encoding="utf-8")
 
     @staticmethod
-    def is_installed(alias: str, project_name: str = None) -> Union[bool, Optional[str]]:
+    def is_installed(alias: str, project_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """ 检查自定义命令是否被安装 """
         # pipx runpip cmdbox show -f cmdbox，当project不为None时
         # pipx list,当project为None时
         if not alias:
-            raise ValueError(f"is_installed, alias can't be empty or None")
-        command = None
+            raise ValueError("is_installed, alias cannot be empty or None")
+
         if project_name:
-            command = f'pipx runpip {project_name} show -f {project_name}'
+            command = f"pipx runpip {project_name} show -f {project_name}"
             result = child_run(command)
             if result.returncode != 0:
                 return False, None
-            if alias:
-                if result.stdout and alias in result.stdout:
-                    return True, project_name                
-            else:
+            if result.stdout and alias in result.stdout:
                 return True, project_name
             return False, None
         else:
-            command = f'pipx list --short'
+            command = "pipx list --short"
             result = child_run(command)
             if result.returncode != 0:
                 click.echo(f"is_installed, command '{command}' failed\n{result.stderr}")
                 raise ValueError(f"is_installed, command '{command}' failed")
             for line in result.stdout.splitlines():
                 project = line.split()[0]
-                if project == "cmdbox": continue
-                is_installed, project_name = PyProject.is_installed(alias, project)
+                if project in EXCLUDED_PROJECTS:
+                    continue
+                is_installed, installed_project = PyProject.is_installed(alias, project)
                 if is_installed:
-                    return True, project_name
-            
+                    return True, installed_project
+
             if check_command_exists(alias):
                 return True, "__sys_system__"
             return False, None
 
     @staticmethod
     @lru_cache
-    def get_project_commands(project_name: str):
-        command = f'pipx runpip {project_name} show -f {project_name}'
+    def get_project_commands(project_name: str) -> List[str]:
+        """获取项目中的所有命令"""
+        command = f"pipx runpip {project_name} show -f {project_name}"
         result = child_run(command)
         if result.returncode != 0:
             return []
-        commands = []
+        commands: List[str] = []
         if is_debug():
             click.echo(f"get_project_commands-result.stdout: {result.stdout}")
+        
+        # 根据操作系统选择合适的分隔符
+        scripts_dir = f'Scripts{os.sep}' if os.name == 'nt' else 'bin'
         for line in result.stdout.splitlines():
-            if  line.count("Scripts\\") > 0:
+            if scripts_dir in line:
                 if is_debug():
                     click.echo(f"line: {line}")
-                commands.append(line.split("Scripts\\")[1].rsplit('.', 1)[0])
+                commands.append(line.split(scripts_dir)[1].rsplit(".", 1)[0])
         return commands
 
     @staticmethod
-    def get_installed_projects():
-        command = f'pipx list --short'
+    def get_installed_projects() -> List[str]:
+        """获取所有已安装的项目"""
+        command = "pipx list --short"
         result = child_run(command)
         if result.returncode != 0:
             click.echo(f"get_installed_projects, command '{command}' failed\n{result.stderr}")
             raise ValueError(f"get_installed_projects, command '{command}' failed")
         if is_debug():
             click.echo(f"get_installed_projects-result.stdout:\n{result.stdout}")
-        projects = []
+        projects: List[str] = []
         for project in result.stdout.splitlines():
-            _version = project.split()[1]
-            _, scrt_name = Base32V.decrypt_version(_version)
+            proj_version = project.split()[1]
+            _, scrt_name = Base32V.decrypt_version(proj_version)
             if is_debug():
                 click.echo(f"+++++project: {project}")
                 click.echo(f"+++++scrt_name: {scrt_name}")
             if not scrt_name:
                 continue
-            sps = scrt_name.split('_')
-            if sps[0] == "cmdr" and sps[1]:
+            sps = scrt_name.split("_")
+            if len(sps) >= 2 and sps[0] == "cmdr" and sps[1]:
                 projects.append(sps[1])
         return projects
 
     @staticmethod
-    def get_actual_command(alias: str):
-        command = fr'{alias} --icommand'
+    def get_actual_command(alias: str) -> Optional[str]:
+        """获取实际命令"""
+        command = fr"{alias} --icommand"
         result = child_run(command, 2)
         if is_debug():
             click.echo(f"get_actual_command-command: {command}")
@@ -208,8 +224,9 @@ class PyProject:
         return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}", "ActCommand:")
 
     @staticmethod
-    def get_project_name(alias: str):
-        command = fr'{alias} --oproject-name'
+    def get_project_name(alias: str) -> Optional[str]:
+        """获取项目名称"""
+        command = fr"{alias} --oproject-name"
         result = child_run(command, 2)
         if is_debug():
             click.echo(f"get_project_name-command: {command}")
@@ -218,15 +235,17 @@ class PyProject:
         if result.returncode != 0:
             return None
         return PyProject._handle_result_out(f"{result.stdout}\n{result.stderr}", "PackageName:")
-    
-    def _file_content(self, command: Command):
+
+    def _file_content(self, command: Command) -> str:
+        """生成命令源代码内容"""
         from cmdbox_commands.cmd_register.py_project.generator import generator_src
 
         return generator_src(command.command, command.description, command.is_gui)
 
     @staticmethod
-    def _handle_result_out(str, key):
-        if str and key in str:
-            return str.split(key)[1].strip()
+    def _handle_result_out(string: str, key: str) -> Optional[str]:
+        """处理命令输出结果"""
+        if string and key in string:
+            return string.split(key)[1].strip()
         return None
-
+        
