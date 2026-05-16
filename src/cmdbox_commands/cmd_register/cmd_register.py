@@ -116,6 +116,7 @@ class CmdRegister:
             "is_gui": is_gui,
             "description": description
         }
+        self._clear_cache()
         res = False
         if self._update_project(project_name):
             self._save()
@@ -160,6 +161,7 @@ class CmdRegister:
                 click.echo(f"Alias \"{alias}\" does not exist in any project")
                 return False
         self.cmd_register.pop(alias, None)
+        self._clear_cache()
         if self._check_exist(project_name):
             res = self._update_project(project_name)
         else:
@@ -392,6 +394,11 @@ class CmdRegister:
         """获取所有项目名称"""
         return sorted(set([cmd["project_name"] for cmd in self.cmd_register.values()]))
 
+    def _clear_cache(self) -> None:
+        """清除缓存，在配置变更后调用"""
+        self._check_exist.cache_clear()
+        self._get_projects.cache_clear()
+
     def _del_project(self, project_name: str) -> None:
         """删除项目中的所有别名"""
         to_delete = [
@@ -400,6 +407,7 @@ class CmdRegister:
         ]
         for alias in to_delete:
             del self.cmd_register[alias]
+        self._clear_cache()
 
     def _save(self) -> None:
         """保存配置到文件"""
@@ -410,6 +418,7 @@ class CmdRegister:
         """从文件加载配置"""
         with open(self.cmd_register_toml, "r", encoding="utf-8") as f:
             self.cmd_register = load(f)
+        self._clear_cache()
 
     def _sync_installed(self, project_name: Optional[str] = None) -> None:
         """同步已安装的自定义命令"""
@@ -481,6 +490,7 @@ class CmdRegister:
             "is_gui": is_gui,
             "description": description
         }
+        self._clear_cache()
 
     def _print_cmd_register(self, project_name: str, alias: str) -> None:
         """打印自定义命令的详细信息"""

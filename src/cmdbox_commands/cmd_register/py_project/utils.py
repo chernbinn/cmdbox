@@ -28,7 +28,7 @@ def safe_join_path(base_path: Union[str, Path], *paths: str) -> Path:
     return full
 
 def check_command_exists(cmd: Union[str, os.PathLike]) -> bool:
-
+    
     """检查命令是否存在于系统PATH中（兼容所有平台和Python版本）"""
     # 显式将PathLike转换为字符串
     cmd_str = os.fsdecode(cmd) if not isinstance(cmd, str) else cmd
@@ -113,21 +113,27 @@ def str_decode(line_bytes: bytes) -> str:
                 return line_str
         except Exception:
             continue
-        
     # 最终兜底方案：替换不可解码字符
     return line_bytes.decode("utf-8", errors="replace").rstrip()
 
-def tee_stream(stream, output_file, is_stderr: bool = False, result: Optional[object] = None, verbose: Literal[0,1,2] = 2) -> None:
+class VerboseType:
+    """详细程度类型"""
+    NO_LOGS = 0
+    ERROR = 1
+    DEBUG = 2
+
+def tee_stream(stream, output_file, is_stderr: bool = False, result: Optional[object] = None, 
+    verbose: Literal[VerboseType.NO_LOGS, VerboseType.ERROR, VerboseType.DEBUG] = VerboseType.DEBUG) -> None:
     """流式处理函数"""
     def record_line(line: str) -> None:
         newline = line if line.endswith("\n") else line + "\n"
         if is_stderr:
             result.stderr += newline
-            if verbose > 0:
+            if verbose >= VerboseType.ERROR:
                 out_print(line, file=sys.stderr)
         else:
             result.stdout += newline
-            if verbose > 1:
+            if verbose >= VerboseType.DEBUG:
                 out_print(line)
 
         if output_file:
@@ -147,14 +153,17 @@ def tee_stream(stream, output_file, is_stderr: bool = False, result: Optional[ob
 
 class ChildResult:
     """子进程执行结果类"""
+    RETURN_CODE_SUCCESS = 0
+    RETURN_CODE_FAILED = 1
 
-    def __init__(self, returncode: int = 1, stdout: str = "", stderr: str = ""):
+    def __init__(self, returncode: int = RETURN_CODE_FAILED, stdout: str = "", stderr: str = ""):
         """初始化结果"""
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
 
-def child_run(args: str, verbose: Literal[0,1,2] = 0, log_file: Optional[Path] = None) -> ChildResult:
+def child_run(args: str, verbose: Literal[VerboseType.NO_LOGS, VerboseType.ERROR, VerboseType.DEBUG] = VerboseType.NO_LOGS,
+       log_file: Optional[Path] = None) -> ChildResult:
     """执行子进程命令"""
     env = {
         **os.environ,
@@ -183,9 +192,7 @@ def child_run(args: str, verbose: Literal[0,1,2] = 0, log_file: Optional[Path] =
             Path(log_file).parent.mkdir(parents=True, exist_ok=True)
             f = open(log_file, "w", encoding="utf-8")
 
-        result = ChildResult(1, "", "")
-        stderr_thread = None
-        stdout_thread = None
+        result = ChildResult(ChildResult.RETURN_CODE_FAILED, "", "")
 
         stderr_thread = threading.Thread(
             target=tee_stream,
@@ -208,7 +215,8 @@ def child_run(args: str, verbose: Literal[0,1,2] = 0, log_file: Optional[Path] =
     except Exception as e:
         out_print(f"Excute command '{args}' failed: {e}")
         return ChildResult(
-            returncode=1,
+            returncode=ChildResult.RETURN_CODE_FAILED,
             stdout="",
             stderr=str(e)
         )
+        
