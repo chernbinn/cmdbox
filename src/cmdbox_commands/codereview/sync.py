@@ -207,8 +207,6 @@ def _handle_normal_commit(commit_id, full_msg):
     
     # 提交（Change-Id 将由 commit-msg hook 添加）
     if not git_ops.commit_with_message(full_msg):
-        logger.error("  错误: 提交失败，可能缺少 commit-msg hook")
-        logger.error("  请安装 hook: curl -o .git/hooks/commit-msg http://localhost:8080/tools/hooks/commit-msg")
         raise Exception("commit failed")
     
     logger.info("  成功提交，Change-Id 已添加")

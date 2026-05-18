@@ -122,11 +122,14 @@ def is_ancestor(ancestor, descendant):
 
 def commit_with_message(message):
     """用指定消息提交"""
-    result = run_cmd(f"git commit -F -", input=message)
+    has_diff = has_staged_changes()
+    result = run_cmd(f"git commit {'' if has_diff else '--allow-empty'} -F -", input=message)
     if result.returncode != 0:
-        logger.error(f"git commit 失败，返回码: {result.returncode}, stderr: {result.stderr or 'N/A'}")
+        logger.error(f"git commit 失败，返回码: {result.returncode}")
+        logger.error(f"stdout: {result.stdout or 'N/A'}")
+        logger.error(f"stderr: {result.stderr or 'N/A'}")
         return False
-    return result.returncode == 0
+    return True
 
 def squash_merge_commit(commit):
     """squash merge commit"""
@@ -254,3 +257,19 @@ def is_workdir_clean() -> bool:
         logger.info(f"工作目录有冲突: {conflicts}")
         return False
     return True
+
+def has_staged_changes() -> bool:
+    """检查暂存区是否有变更，返回 True 表示有变更，False 表示无变更。
+    如果命令执行失败则抛出异常。
+    """
+    result = run_cmd("git diff --cached --quiet")
+    if result.returncode == 0:
+        return False          # 无变更
+    elif result.returncode == 1:
+        return True           # 有变更
+    else:
+        # 其他返回码表示 Git 命令执行失败
+        logger.error(f"git diff --cached --quiet 执行失败，返回码: {result.returncode}")
+        logger.error(f"stdout: {result.stdout or 'N/A'}")
+        logger.error(f"stderr: {result.stderr or 'N/A'}")
+        raise Exception("git diff 命令失败")
