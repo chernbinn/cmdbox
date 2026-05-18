@@ -93,7 +93,7 @@ def show_config(project_name):
     config = load_config(project_name)
     if config:
         logger.info(f"Tip: {_merge_depth_prompt()}")
-        logger.info("Tip: 项目配置中未配置的项使用默认值，如果需要修改默认值，请使用 'codereview config set {project_name}' 修改")
+        logger.info(f"Tip: 项目配置中未配置的项使用默认值，如果需要修改默认值，请使用 codereview config set {project_name} 修改")
         logger.info(f"项目 {project_name} 的当前配置:")
         default_config = _get_default_config(project_name)
         default_tag = "（默认值）"

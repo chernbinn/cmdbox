@@ -149,9 +149,16 @@ def get_merge_base(branch1, branch2):
     # 不限制主链上的提交
     # result = run_cmd(f"git merge-base {branch1} {branch2}")
     # 只从主链上计算共同祖先
-    result = run_cmd(f"git merge-base $(git rev-list --first-parent -1 {branch1}) {branch2}")
+    # shell command: git merge-base $(git rev-list --first-parent -1 {branch1}) {branch2}
+    result = run_cmd(f"git rev-list --first-parent -1 {branch1}")
+    if result.returncode != 0:
+        logger.error(f"git rev-list 失败，返回码: {result.returncode}, stderr: {result.stderr or 'N/A'}")
+        return None
+    branch1_latest_commit = result.stdout.strip()[:COMMIT_HASH_LEN]
+    result = run_cmd(f"git merge-base {branch1_latest_commit} {branch2}")
     if result.returncode == 0:
         return result.stdout.strip()[:COMMIT_HASH_LEN]
+    logger.error(f"git merge-base 失败，返回码: {result.returncode}, stderr: {result.stderr or 'N/A'}")
     return None
 
 def get_last_synced_commit(target_branch):

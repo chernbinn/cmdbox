@@ -29,6 +29,8 @@ def cli(ctx, log_level, show_path):
     """代码审查工具 - 同步上游分支到 Gerrit 审核分支"""
     if log_level:
         os.environ['CODEREVIEW_LOG_LEVEL'] = log_level
+        from .logger import set_log_level
+        set_log_level(log_level)
 
     if show_path:
         click.echo(get_config_dir())
