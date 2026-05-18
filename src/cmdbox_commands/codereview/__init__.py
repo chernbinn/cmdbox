@@ -9,7 +9,6 @@ from .config import (
     reset_config,
     list_projects,
     run_wizard,
-    get_default_config,
     get_config_dir,
 )
 from .sync import sync_project
@@ -25,7 +24,6 @@ __all__ = [
     'reset_config',
     'run_wizard',
     'list_projects',
-    'get_default_config',
     'get_config_dir',
     'sync_project',
     'analyze_commit',

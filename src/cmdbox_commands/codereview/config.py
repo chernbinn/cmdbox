@@ -8,7 +8,8 @@ CONFIG_BASE = Path.home() / ".gerrit_review"
 # 开关：是否线性化展开 merge commit
 # True: 可配置展开深度
 # False: 默认 squash方式 合入 merge commit
-LINEARIZE_MERGE_FEATURE = False
+LINEARIZE_MERGE_FEATURE = True
+DEFAULT_MAX_MERGE_DEPTH = 0
 
 def get_config_dir():
     """获取配置目录"""
@@ -34,10 +35,11 @@ def save_config(project_name, config):
     with open(config_file, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
-def get_default_config(project_name):
+def _get_default_config(project_name):
     """获取默认配置"""
     import os
     return {
+        "project_name": project_name,
         "repo_path": os.getcwd(),
         "upstream_remote": "origin",
         "remote_branch": "main",
@@ -45,39 +47,42 @@ def get_default_config(project_name):
         "target_branch": f"gerrit-main",
         "gerrit_remote": "gerrit",
         "gerrit_branch": f"custom",
-        "max_merge_depth": 0
+        "max_merge_depth": DEFAULT_MAX_MERGE_DEPTH
     }
+
+def _merge_depth_prompt():
+    prompt_text = (
+            f"max_merge_depth-展开子链 merge commit 的最大深度\n"
+            "  -1: 全部线性化展开 merge commit\n"
+            "   0: 全部 squash方式 合入 merge commit\n"
+            "  其他值: 展开深度超过最大深度时, squash方式 合入 merge commit。"
+        )
+    return prompt_text
 
 def run_wizard(project_name):
     """配置向导"""
     import click
 
-    logger.info(f"\n向导: 创建新项目配置，按Enter键使用默认值")
+    logger.info(f"\n向导: 创建新项目 {project_name} 的配置，按Enter键使用默认值")
     logger.info("-" * 40)
 
-    config = get_default_config(project_name)
+    config = _get_default_config(project_name)
 
-    repo_path = click.prompt(f"项目根路径，当前默认值:", default=config['repo_path'])
+    repo_path = click.prompt(f"repo_path-项目根路径，当前默认值:", default=config['repo_path'])
     if not repo_path:
         logger.error("错误: 仓库路径不能为空")
         return None
     config['repo_path'] = repo_path
 
-    config['upstream_remote'] = click.prompt(f"上游远程仓库，当前默认值", default=config['upstream_remote'])
-    config['remote_branch'] = click.prompt(f"上游分支，当前默认值", default=config['remote_branch'])
-    config['track_branch'] = click.prompt(f"本地追踪分支，当前默认值", default=config['track_branch'])
-    config['target_branch'] = click.prompt(f"目标分支，当前默认值", default=config['target_branch'])
-    config['gerrit_remote'] = click.prompt(f"Gerrit远程仓库，当前默认值", default=config['gerrit_remote'])
-    config['gerrit_branch'] = click.prompt(f"Gerrit分支，当前默认值", default=config['gerrit_branch'])
+    config['upstream_remote'] = click.prompt(f"upstream_remote-上游远程仓库，当前默认值", default=config['upstream_remote'])
+    config['remote_branch'] = click.prompt(f"remote_branch-上游分支，当前默认值", default=config['remote_branch'])
+    config['track_branch'] = click.prompt(f"track_branch-本地追踪分支，当前默认值", default=config['track_branch'])
+    config['target_branch'] = click.prompt(f"target_branch-目标分支，当前默认值", default=config['target_branch'])
+    config['gerrit_remote'] = click.prompt(f"gerrit_remote-Gerrit-远程仓库，当前默认值", default=config['gerrit_remote'])
+    config['gerrit_branch'] = click.prompt(f"gerrit_branch-Gerrit-分支，当前默认值", default=config['gerrit_branch'])
     if LINEARIZE_MERGE_FEATURE:
-        prompt_text = (
-            f"\n展开子链 merge commit 的最大深度（当前默认值 {config['max_merge_depth']}）\n"
-            "  -1: 全部线性化展开 merge commit\n"
-            "   0: 全部 squash方式 合入 merge commit\n"
-            "  其他值: 展开深度超过最大深度时, squash方式 合入 merge commit\n"
-            "请输入："
-        )
-        config['max_merge_depth'] = click.prompt(prompt_text, default=config['max_merge_depth'])
+        prompt_text = _merge_depth_prompt()
+        config['max_merge_depth'] = click.prompt(f"{prompt_text}当前默认值", default=config['max_merge_depth'])
 
     save_config(project_name, config)
     logger.info(f"\n配置已保存到 {get_config_file(project_name)}")
@@ -87,9 +92,14 @@ def show_config(project_name):
     """显示配置"""
     config = load_config(project_name)
     if config:
-        logger.info(f"项目 {project_name} 的配置:")
-        for key, value in config.items():
-            logger.info(f"  {key}: {value}")
+        logger.info(f"Tip: {_merge_depth_prompt()}")
+        logger.info("Tip: 项目配置中未配置的项使用默认值，如果需要修改默认值，请使用 'codereview config set {project_name}' 修改")
+        logger.info(f"项目 {project_name} 的当前配置:")
+        default_config = _get_default_config(project_name)
+        default_tag = "（默认值）"
+        config_keys = set(config.keys())
+        for key, value in default_config.items():
+            logger.info(f"  {key}: {config.get(key, value)}{default_tag if key not in config_keys else ''}")
     else:
         logger.info(f"项目 {project_name} 没有配置")
 
@@ -100,16 +110,14 @@ def set_config(project_name):
     config = load_config(project_name)
     if not config:
         logger.info(f"项目 {project_name} 没有配置，请先运行向导")
-        return
-
-    logger.info(f"当前配置:")
-    for key, value in config.items():
-        logger.info(f"  {key}: {value}")
+        return    
+    show_config(project_name)
 
     logger.info("\n输入新值（按回车保持当前值）:")
     new_config = config.copy()
-    for key in ['repo_path', 'upstream_remote', 'remote_branch', 'track_branch', 'target_branch', 'gerrit_remote', 'gerrit_branch']:
-        value = click.prompt(key, default=config[key])
+    default_config = _get_default_config(project_name)
+    for key in default_config.keys():
+        value = click.prompt(key, default=config.get(key, default_config[key]))
         if value:
             new_config[key] = value
 

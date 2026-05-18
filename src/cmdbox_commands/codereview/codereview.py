@@ -123,10 +123,13 @@ def sync_cmd(project):
 
     # 执行同步
     try:
+        # 输出项目信息
+        config_show(project)
         sync_project(project_config)
     except Exception as e:
         logger.error(f"同步失败: {e}")
-        logger.exception(e)
+        if os.environ.get('CODEREVIEW_LOG_LEVEL') == 'DEBUG':
+            logger.exception(e)
 
 @cli.command('analyze')
 @click.argument('commit_hash')

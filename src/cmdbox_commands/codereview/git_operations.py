@@ -6,11 +6,18 @@ from .logger import logger
 # 完整长度的 commit hash 长度
 # COMMIT_HASH_LEN = None
 # 短长度的 commit hash 长度
-COMMIT_HASH_LEN = 7
+COMMIT_HASH_LEN = 12
+
+CHERRY_PICK_PREFIX = "cherry picked from commit "
+CHERRY_PICK_PREFIX_LEN = len(CHERRY_PICK_PREFIX.split())
+SQUASHED_PREFIX = "squashed from commit "
+SQUASHED_PREFIX_LEN = len(SQUASHED_PREFIX.split())
+MERGE_COMMIT_PREFIX = "chain merge commit: "
+MERGE_COMMIT_PREFIX_LEN = len(MERGE_COMMIT_PREFIX.split())
 
 def run_cmd(cmd, capture_output=True, text=True, input=None):
     """运行命令"""
-    logger.info(f"git COMMAND: {cmd}")
+    logger.debug(f"git COMMAND: {cmd}")
     if input:
         logger.debug(f"input: {input}")
     result = subprocess.run(cmd, 
@@ -74,7 +81,7 @@ def has_conflict_resolution(commit, parent1, parent2):
     return auto_tree != real_tree
 
 def get_parent_sub_commits(start_point, end_point):
-    """获取子分支提交列表（正向顺序）"""
+    """获取分支提交列表（正向顺序）"""
     # 只获取主链上的提交
     # git rev-list --reverse --first-parent $P1..$P2
     # 从 $P1 到 $P2 的所有提交，包含merge引入的提交记录
@@ -103,7 +110,7 @@ def cherry_pick_commit(commit):
     result = run_cmd(f"git cherry-pick -n {commit}")
     return result.returncode == 0
 
-def is_exist_commit(commit):
+def is_commit_exists(commit):
     """检查提交是否存在"""
     result = run_cmd(f"git rev-parse --verify {commit}")
     return result.returncode == 0
@@ -117,7 +124,7 @@ def commit_with_message(message):
     """用指定消息提交"""
     result = run_cmd(f"git commit -F -", input=message)
     if result.returncode != 0:
-        logger.error(f"git commit 失败，返回码: {result.returncode}, stderr: {result.stderr}")
+        logger.error(f"git commit 失败，返回码: {result.returncode}, stderr: {result.stderr or 'N/A'}")
         return False
     return result.returncode == 0
 
@@ -125,7 +132,7 @@ def squash_merge_commit(commit):
     """squash merge commit"""
     result = run_cmd(f"git read-tree --reset -u {commit}")
     if result.returncode != 0:        
-        logger.error(f"git read-tree 失败，返回码: {result.returncode}, stderr: {result.stderr}")
+        logger.error(f"git read-tree 失败，返回码: {result.returncode}, stderr: {result.stderr or 'N/A'}")
         return False
     message = get_commit_message(commit)
     return commit_with_message(message)
@@ -137,16 +144,12 @@ def get_current_branch():
         return result.stdout.strip()
     return None
 
-def is_workdir_clean():
-    """检查工作目录是否干净"""
-    result = run_cmd("git status --porcelain")
-    return result.returncode == 0 and result.stdout.strip() == ""
-
 def get_merge_base(branch1, branch2):
-    """获取两个分支的共同祖先"""
+    """获取两个分支主链的共同祖先"""
+    # 不限制主链上的提交
+    # result = run_cmd(f"git merge-base {branch1} {branch2}")
     # 只从主链上计算共同祖先
-    # base=$(git merge-base $(git rev-list --first-parent -1 branch1) branch2)
-    result = run_cmd(f"git merge-base {branch1} {branch2}")
+    result = run_cmd(f"git merge-base $(git rev-list --first-parent -1 {branch1}) {branch2}")
     if result.returncode == 0:
         return result.stdout.strip()[:COMMIT_HASH_LEN]
     return None
@@ -159,11 +162,28 @@ def get_last_synced_commit(target_branch):
     
     msg = result.stdout
     for line in msg.split('\n'):
-        if "cherry picked from commit" in line:
-            parts = line.split()
-            if len(parts) >= 5:
-                return parts[4]
+        parts = line.split()
+        if CHERRY_PICK_PREFIX in line:            
+            if len(parts) > CHERRY_PICK_PREFIX_LEN:
+                return parts[CHERRY_PICK_PREFIX_LEN]
+        elif SQUASHED_PREFIX in line:
+            if len(parts) > SQUASHED_PREFIX_LEN:
+                return parts[SQUASHED_PREFIX_LEN]
     return None
+
+def get_parent_merge_commit(branch) -> list:
+    """获取最新提交的父合并提交"""
+    result = run_cmd(f"git log -1 --format=%B {branch}")
+    if result.returncode != 0:
+        return []
+
+    msg = result.stdout
+    for line in msg.split('\n'):
+        if MERGE_COMMIT_PREFIX in line:
+            parts = line.split()
+            if len(parts) > MERGE_COMMIT_PREFIX_LEN:
+                return parts[MERGE_COMMIT_PREFIX_LEN:]
+    return []
 
 def get_new_commits(from_commit, to_branch):
     """获取从from_commit到to_branch的新提交（正向顺序）"""
@@ -196,3 +216,34 @@ def get_upstream_remote(upstream):
     if result.returncode == 0:
         return result.stdout.strip()
     return None
+
+def in_parent_chain(branch, commit):
+    """检查是否在父链上"""
+    result = run_cmd(f"git merge-base --is-ancestor {commit} {branch}")
+    return result.returncode == 0
+
+def is_exists_conflict():
+    """检查是否存在冲突"""
+    return not is_workdir_clean()
+
+def is_workdir_clean() -> bool:
+    """检查工作目录是否干净"""
+    """
+    代码	描述	说明与示例
+    UU	双方修改 (both modified)	最常见的冲突。你和对方修改了同一文件的同一区域，Git 无法自动合并。
+    AU	我们添加 (added by us)	在Git“我们”这边是一个“添加”了新文件的操作，而“他们”那边则是“修改”了这个文件。
+    UA	他们添加 (added by them)	对方添加了一个文件，但我们这边也修改了它。
+    DU	我们删除 (deleted by us)	我们删除了一个文件，但对方对此文件做了修改。
+    UD	他们删除 (deleted by them)	对方删除了一个文件，但我们对此文件做了修改。
+    """
+    result = run_cmd("git status --porcelain")
+    if result.returncode != 0:
+        logger.error(f"git status --porcelain 失败，返回码: {result.returncode}, stderr: {result.stderr or 'N/A'}")
+        return False
+
+    conflicts = [line for line in result.stdout.split('\n') 
+             if line.startswith(('UU', 'AU', 'UA', 'DU', 'UD'))]
+    if conflicts:
+        logger.info(f"工作目录有冲突: {conflicts}")
+        return False
+    return True
