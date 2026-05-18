@@ -8,7 +8,7 @@ import click
 from pathlib import Path
 from functools import lru_cache
 from typing import Union, Optional, Tuple, List
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from cmdbox_commands.cmd_register.py_project.pyproject_toml import ScriptEntry, PyprojectToml
 from cmdbox_commands.cmd_register.config import is_debug
 from .utils import child_run, Base32V, check_command_exists
@@ -18,6 +18,12 @@ SAFE_PROJECT_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 # 排除的项目名称集合（这些项目不会被同步）
 EXCLUDED_PROJECTS = frozenset(["cmdbox"])
+
+# 命令别名安全模式（符合Python模块命名规范）
+# - 只能包含字母、数字和下划线
+# - 不能以数字开头
+# - 不能以下划线开头（按Python惯例，下划线开头表示私有）
+ALIAS_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
 def validate_project_name(project_name: str) -> bool:
@@ -36,6 +42,29 @@ def validate_project_name(project_name: str) -> bool:
     return bool(SAFE_PROJECT_PATTERN.match(project_name))
 
 
+def validate_alias_name(alias: str) -> bool:
+    """验证命令别名是否符合Python模块命名规范
+
+    Args:
+        alias: 命令别名
+
+    Returns:
+        bool: 别名是否有效
+
+    Note:
+        有效的命令别名必须符合Python模块命名规范：
+        - 只能包含字母、数字和下划线
+        - 不能以数字开头
+        - 不能以下划线开头（按Python惯例，下划线开头表示私有）
+        - 不能包含连字符（Python模块名不允许）
+
+        这是因为命令别名会被用作生成Python模块文件名和entry point。
+    """
+    if not alias:
+        return False
+    return bool(ALIAS_PATTERN.match(alias))
+
+
 class Command(BaseModel):
     """命令模型"""
     alias: str
@@ -43,11 +72,26 @@ class Command(BaseModel):
     is_gui: bool = False
     description: str = ""
 
+    @field_validator('alias')
+    def validate_alias(cls, v):
+        """验证命令别名是否符合Python模块命名规范"""
+        if not validate_alias_name(v):
+            raise ValueError(
+                f"Invalid command alias '{v}'. "
+                f"Alias must comply with Python module naming rules:\n"
+                f"  - Can only contain letters, numbers, and underscores\n"
+                f"  - Cannot start with a number\n"
+                f"  - Cannot start with an underscore\n"
+                f"  - Cannot contain hyphens (use underscores instead)"
+            )
+        return v
+
     def src_file_name(self) -> str:
         """获取源代码文件名"""
         gui_prefix = "gui_" if self.is_gui else ""
-        return f"{self.alias}_{gui_prefix}cli.py"
-
+        # 将连字符替换为下划线，因为Python模块名不允许包含连字符
+        safe_alias = self.alias.replace("-", "_")
+        return f"{safe_alias}_{gui_prefix}cli.py"
 
 class PyProject:
     def __init__(self, project_path: Union[str, Path], project_name: str):

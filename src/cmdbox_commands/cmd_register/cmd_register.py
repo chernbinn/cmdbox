@@ -18,6 +18,9 @@ NONE_PLACEHOLDER = "None"
 
 class AliasCMD(Command):
     """命令别名模型"""
+    project_name: str = 'default' 
+    # 继承了BaseModel，project_name不再是类属性，是BaseModel的模型字段
+    # 类属性必须声明模型字段，不再具备类属性，比如这里注释掉project_name，__init__中初始化project_name会报错
 
     def __init__(self, alias: str,
             command: str,
