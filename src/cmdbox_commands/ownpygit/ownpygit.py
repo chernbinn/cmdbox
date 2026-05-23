@@ -578,10 +578,15 @@ def cli():
         module = None
         if len(sys.argv) > 2 and sys.argv[2].startswith("-m"):
             if len(sys.argv) > 3:
-                module = sys.argv[3]                
+                module = sys.argv[3]
             else:
                 list_modules()
                 return
+        elif len(sys.argv) > 2 and not sys.argv[2].startswith("-m"):
+            # 输出help信息
+            print("[错误] 参数错误。")
+            return
+
         ls_repo(module)
     elif command == "delete-repo":
         if len(sys.argv) < 3:
