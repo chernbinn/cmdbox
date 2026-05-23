@@ -3,7 +3,7 @@ repos:
   hooks:
     - id: freeze-version
       name: Freeze version
-      entry: python -m scripts.git_versioning_callback
+      entry: python -m scripts.git_versioning_callback commit
       language: system
       stages: [commit-msg]
       verbose: true

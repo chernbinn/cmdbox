@@ -10,11 +10,7 @@ from setuptools_git_versioning import (
     _tag_formatter_factory,
     _callable_factory
 )
-try:
-    from .logger_config import get_print_logger
-except:
-    print("python -m scripts.git_versioning_callback [install|file]")
-    exit(1)
+from .logger_config import get_print_logger
 
 # --------------------------------------
 # project global config
@@ -27,8 +23,8 @@ g_config = {
         "template": "{tag}",
         "dev_template": "{tag}.{ccount}",
         "dirty_template": "{tag}.{ccount}+dirty",
-        "tag_filter": "^(?P<tag>v\d+\.\d+\.\d+)$", # 过滤符合条件的tag
-        "tag_formatter": "^.*?(?P<tag>\d+\.\d+\.\d+).*" # 对tag进行提取，提取出纯粹的版本号：x.y.z
+        "tag_filter": r"^(?P<tag>v\d+\.\d+\.\d+)$", # 过滤符合条件的tag
+        "tag_formatter": r"^.*?(?P<tag>\d+\.\d+\.\d+).*" # 对tag进行提取，提取出纯粹的版本号：x.y.z
     }
 g_post_config = {
         "dev_template": "{tag}.post{ccount}",
@@ -519,4 +515,8 @@ if __name__ == '__main__':
     elif len(sys.argv) > 1 and sys.argv[1] == 'file':
         logger.info(f"version: {version_from_file()}")
         sys.exit(0)
-    sys.exit(main())
+    elif len(sys.argv) > 1 and sys.argv[1] == 'commit':
+        sys.exit(main())
+    else:
+        print("python -m scripts.git_versioning_callback [install|file|commit]")
+        sys.exit(1)
