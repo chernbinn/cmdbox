@@ -28,21 +28,28 @@ def _ensure_db_dir():
         print(f"[错误] 创建配置目录失败: {e}")
         return False
 
-def _get_working_dir()->Path:
-    """确保在执行命令前切换到当前目录"""
-    if not CURRENT_DIR_FILE.exists():
-        return get_repo()
-    with open(CURRENT_DIR_FILE, 'r', encoding='utf-8') as f:
-        current_dir = f.read().strip()
-    if current_dir and Path(current_dir).exists():
-        #os.chdir(current_dir)
-        return Path(current_dir)
-    return get_repo()
+def _get_working_dir()->tuple[Path,Path]:
+    """确保在执行命令前切换到当前目录"""    
+    cwd = Path.cwd()
+    repo = get_repo()
+    if cwd.is_relative_to(repo):
+        with open(CURRENT_DIR_FILE, 'w', encoding='utf-8') as f:
+            f.write(str(cwd))
+        return repo, cwd
+    else:
+        if not CURRENT_DIR_FILE.exists():
+            return repo, repo
+        with open(CURRENT_DIR_FILE, 'r', encoding='utf-8') as f:
+            current_dir = f.read().strip()
+        if current_dir and Path(current_dir).exists():
+            #os.chdir(current_dir)
+            return repo, Path(current_dir)
+        return repo, repo
 
-def _judge_repo_path(func):    
-    def wapper(*args, **kwargs):
-        workingdir = _get_working_dir()
-        repo = get_repo()
+def _judge_repo_path(func):
+    """装饰器：验证仓库路径并将 repo 和 workingdir 传递给被装饰函数"""
+    def wrapper(*args, **kwargs):
+        repo, workingdir = _get_working_dir()
         if not repo or not workingdir.is_relative_to(repo):
             print(f"[错误] 当前目录不是仓库目录: {workingdir}")
             # 获取func的返回值类型
@@ -52,8 +59,11 @@ def _judge_repo_path(func):
             return None
         print(f"\033[33m[ownpygit] 当前仓库目录: {repo}\033[0m")
         print(f"\033[33m[ownpygit] 当前操作目录: {workingdir}\033[0m\n")
+        # 将 repo 和 workingdir 通过关键字参数传递
+        kwargs['_repo'] = repo
+        kwargs['_cwd'] = workingdir
         return func(*args, **kwargs)
-    return wapper
+    return wrapper
 
 def set_repo(repo_path):
     """设置激活仓库路径"""
@@ -180,10 +190,13 @@ def delete_repo(target, remove_dir=False):
     return True
 
 @_judge_repo_path
-def ls_repo(module:str=None)->None:
+def ls_repo(module:str=None, *, _repo=None, _cwd=None)->None:
     """列出当前激活仓库的文件和目录"""
     prefix = f"模块" if module else "仓库"
-    repo_dir = _get_working_dir()    
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    repo_dir = _cwd
     try:        
         repo_path = Path(repo_dir)
         if module:
@@ -204,9 +217,12 @@ def ls_repo(module:str=None)->None:
             print(f"[错误] 列出内容失败: {e}")
 
 @_judge_repo_path
-def list_modules()->None:
+def list_modules(*, _repo=None, _cwd=None)->None:
     """列出当前激活仓库的模块"""
-    repo_dir = _get_working_dir()
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    repo_dir = _cwd
     try:        
         repo_path = Path(repo_dir)
         print(f"[ownpygit] 模块列表: {repo_path}")
@@ -219,9 +235,12 @@ def list_modules()->None:
         print(f"[错误] 列出模块列表失败: {e}")
 
 @_judge_repo_path
-def cp_file(file_path, module:str=None, dst_path=None)->bool:
-    """将文件拷贝到当前激活仓库"""    
-    cwd = _get_working_dir()
+def cp_file(file_path, module:str=None, dst_path=None, *, _repo=None, _cwd=None)->bool:
+    """将文件拷贝到当前激活仓库"""
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    cwd = _cwd
     if module:
         if not (cwd / module).exists():
             # 提示创建模块
@@ -267,9 +286,12 @@ def cp_file(file_path, module:str=None, dst_path=None)->bool:
         return False
 
 @_judge_repo_path
-def ocp_file(in_path, module:str=None, out_path=None):
+def ocp_file(in_path, module:str=None, out_path=None, *, _repo=None, _cwd=None):
     """将仓库文件拷贝到指定路径"""
-    cwd = _get_working_dir()
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    cwd = _cwd
     if module:
         cwd = cwd / module
         print(f"[ownpygit] 模块路径: {cwd}")
@@ -311,11 +333,13 @@ def ocp_file(in_path, module:str=None, out_path=None):
             return False
 
 @_judge_repo_path
-def compare_files(args)->bool:
+def compare_files(args, *, _repo=None, _cwd=None)->bool:
     """对比仓库文件和指定文件或目录的内容差异"""
     import filecmp
-    repo = get_repo()
-    cwd = _get_working_dir()
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    cwd = _cwd
 
     if not args:
         # 如果没有指定路径，对比当前目录
@@ -368,46 +392,14 @@ def compare_files(args)->bool:
     return True
 
 @_judge_repo_path
-def run_git_command(git_args)->bool:
+def run_git_command(git_args, *, _repo=None, _cwd=None)->bool:
     """在激活仓库执行Git命令，自动处理文件不存在的情况"""
-    repo = get_repo()
-    cwd = _get_working_dir()
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    repo = _repo
     
     try:
-        """
-        # 特殊处理 add 命令        
-        if git_args and git_args[0].lower() == "add":
-            files = git_args[1:]
-            copied_files = []
-            
-            for file in files:
-                src = Path(file)
-                if not src.exists():
-                    print(f"[错误] 源文件不存在: {src}")
-                    continue
-                
-                # 拷贝文件到仓库
-                dst = cwd / src.name
-                try:
-                    shutil.copy2(src, dst)
-                    copied_files.append(dst.name)
-                    print(f"[ownpygit] 已拷贝文件到仓库: {src} -> {dst}")
-                except Exception as e:
-                    print(f"[错误] 拷贝文件失败: {e}")
-                    continue
-            
-            if not copied_files:
-                return False
-            
-            # 执行真正的git add
-            print(f"[ownpygit] 操作仓库: {repo}")
-            result = subprocess.run(
-                ["git", "-C", str(repo), "add"] + copied_files,
-                shell=True,
-                check=False
-            )
-            return result.returncode == 0
-        """
         # 普通Git命令
         print(f"[ownpygit] 操作仓库: {repo}")
         result = subprocess.run(
@@ -422,13 +414,16 @@ def run_git_command(git_args)->bool:
         return False
 
 @_judge_repo_path
-def chdir_repo(path):
+def chdir_repo(path, *, _repo=None, _cwd=None):
     """切换仓库子目录"""
-    repo = get_repo()    
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    repo, cwd = _repo, _cwd
     if path == None:
         target = repo
     else:
-        target = _get_working_dir() / path
+        target = cwd / path
     if not target.exists():
         print(f"[错误] 路径不存在: {target}")
         return False
@@ -448,14 +443,25 @@ def chdir_repo(path):
     print(f"[ownpygit] 已切换到目录: {target}")
     return True
 
+def _save_out_working_dir(repo):
+    """保存当前工作目录"""
+    cwd = Path.cwd()
+    if not cwd.is_relative_to(repo):
+        if not PREV_DIR_FILE.exists():
+            PREV_DIR_FILE.touch()
+        with open(PREV_DIR_FILE, 'w', encoding='utf-8') as f:
+            f.write(str(cwd))
+
 # 说明：
 # 1.bat脚本是在子进程中运行的，无法通过执行bat命令改变命令行的路径
 # 2.鉴于bat的运行机制，cd命令无法直接改变命令行的路径，通过提示信息手动切换路径
 @_judge_repo_path
-def cd_repo(path=None):
+def cd_repo(path=None, *, _repo=None, _cwd=None):
     """切换仓库目录或返回初始目录"""
-    repo = get_repo()
-    cwd = _get_working_dir()
+    # 如果未传入，则兜底调用（兼容直接调用的情况）
+    if _repo is None or _cwd is None:
+        _repo, _cwd = _get_working_dir()
+    repo, cwd = _repo, _cwd
 
     if path == "-":
         if not PREV_DIR_FILE.exists():
@@ -483,12 +489,7 @@ def cd_repo(path=None):
         return False
 
     # 保存当前目录
-    cwd = Path.cwd()
-    if not cwd.is_relative_to(repo):
-        if not PREV_DIR_FILE.exists():
-            PREV_DIR_FILE.touch()
-        with open(PREV_DIR_FILE, 'w', encoding='utf-8') as f:
-            f.write(str(cwd))
+    _save_out_working_dir(repo)
 
     print(f"cd {target}")
     return True
