@@ -179,7 +179,7 @@ def delete_repo(target, remove_dir=False):
             repo = Path(target)
             if repo.exists():
                 if repo.is_dir():
-                    subprocess.run(["rmdir", "/s", "/q", str(repo)], shell=True)
+                    shutil.rmtree(repo)
                 else:
                     repo.unlink()
                 print(f"[ownpygit] 已删除目录: {repo}")
@@ -241,8 +241,14 @@ def cp_file(file_path, module:str=None, dst_path=None, *, _repo=None, _cwd=None)
     if _repo is None or _cwd is None:
         _repo, _cwd = _get_working_dir()
     cwd = _cwd
+    
+    # 检查模块路径穿越
     if module:
-        if not (cwd / module).exists():
+        module_path = (cwd / module).resolve()
+        if not module_path.is_relative_to(_repo):
+            print(f"[错误] {module_path} 非当前仓库 {_repo} 下的模块")
+            return False
+        if not module_path.exists():
             # 提示创建模块
             print(f"[警告] 模块 {module} 不存在, 是否创建? (y/n)")
             choice = input().strip().lower()
@@ -250,8 +256,8 @@ def cp_file(file_path, module:str=None, dst_path=None, *, _repo=None, _cwd=None)
                 print(f"[ownpygit] 操作取消")
                 return False
             # 创建模块目录
-            (cwd / module).mkdir(parents=True, exist_ok=True)
-        cwd = cwd / module
+            module_path.mkdir(parents=True, exist_ok=True)
+        cwd = module_path
     
     if file_path == None:
         print(f"[错误] 请指定要拷贝的文件路径")
@@ -259,7 +265,11 @@ def cp_file(file_path, module:str=None, dst_path=None, *, _repo=None, _cwd=None)
     src = Path(file_path)    
     dst = None
     if dst_path:
-        dst = cwd / Path(dst_path)
+        dst = (cwd / Path(dst_path)).resolve()
+        # 检查目标路径穿越
+        if not dst.is_relative_to(_repo):
+            print(f"[错误] {dst_path} 非当前仓库 {_repo} 下路径")
+            return False
     else:
         dst = cwd / src.name
 
@@ -292,17 +302,27 @@ def ocp_file(in_path, module:str=None, out_path=None, *, _repo=None, _cwd=None):
     if _repo is None or _cwd is None:
         _repo, _cwd = _get_working_dir()
     cwd = _cwd
+    
+    # 检查模块路径穿越
     if module:
-        cwd = cwd / module
+        module_path = (cwd / module).resolve()
+        if not module_path.is_relative_to(_repo):
+            print(f"[错误] {module} 非当前仓库 {_repo} 下目录")
+            return False
+        cwd = module_path
         print(f"[ownpygit] 模块路径: {cwd}")
-        if not (cwd).exists():
+        if not cwd.exists():
             print(f"[错误] 模块 {module} 不存在")
             return False
     
     if in_path == "*":
         in_path = cwd
     else:
-        in_path = cwd / in_path
+        in_path = (cwd / in_path).resolve()
+        # 检查输入路径穿越
+        if not in_path.is_relative_to(_repo):
+            print(f"[错误] {in_path} 非当前工作目录 {_repo} 下路径")
+            return False
     if not in_path.exists():
         print(f"[错误] 仓库路径不存在: {in_path}")
         return False
@@ -404,8 +424,9 @@ def run_git_command(git_args, *, _repo=None, _cwd=None)->bool:
         print(f"[ownpygit] 操作仓库: {repo}")
         result = subprocess.run(
             ["git", "-C", str(repo)] + git_args,
-            shell=True,
-            check=False
+            check=False,
+            capture_output=True,
+            text=True
         )
         return result.returncode == 0
     
