@@ -470,7 +470,7 @@ def cd_repo(path=None):
         return True
 
     if path is None:
-        target = repo
+        target = cwd
     else:
         target = cwd / path
 
