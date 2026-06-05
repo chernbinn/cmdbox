@@ -294,11 +294,8 @@ def compare_files(args: list, *, _repo=None, _cwd=None) -> bool:
 
 @judge_repo_path
 def run_git_command(git_args: list, *, _repo=None, _cwd=None) -> bool:
-    print(f"[ownpygit] 操作仓库: {_repo}")
     result = subprocess.run(["git", "-C", str(_repo)] + git_args,
-                            check=False, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(result.stderr or "[错误] Git命令执行失败")
+                            check=False)
     return result.returncode == 0
 
 @judge_repo_path
@@ -360,12 +357,11 @@ def _print_help():
   ownpygit list-repo                    列出历史仓库
   ownpygit delete-repo <path/alias> [--remove-dir]  删除仓库记录或目录
   ownpygit <git command>                执行任意Git命令（如 add, commit）
-  ownpygit ls [<relpath>]              列出仓库工作目录下的内容
+  ownpygit ls [<relpath>]               列出仓库工作目录下的内容
   ownpygit compare <file|dir>           对比文件/目录与仓库工作目录
-  ownpygit cp <src> [<dst>]             拷贝文件/目录到仓库内
+  ownpygit cp <src> [<dst>]             拷贝文件/目录到仓库工作目录或指定的相对仓库工作目录的路径
   ownpygit ocp <src> <dst>              从仓库内拷贝文件/目录到外部
-  ownpygit cd [<path>|-]                切换仓库子目录或返回外部目录
-  ownpygit chdir <path>                 切换仓库工作目录并实际进入
+  ownpygit cd [<path>|-]                切换仓库工作目录或返回仓库工作目录或外部目录
   ownpygit --path                       显示配置目录
   ownpygit --version                    显示版本信息
 Options:
@@ -394,7 +390,6 @@ def cli():
         "cp": (lambda: cp_file(args[0], args[1] if len(args) > 1 else None), 1, "请指定要拷贝的文件路径"),
         "ocp": (lambda: ocp_file(args[0], args[1]), 2, "请指定要拷贝的仓库文件路径和目标路径"),
         "cd": (lambda: cd_repo(args[0] if args else None), 0, None),
-        "chdir": (lambda: chdir_repo(args[0] if args else None), 0, None),
         "--path": (lambda: print(DB_DIR), 0, None),
         "--version": (lambda: _print_version(), 0, None),
     }
