@@ -28,10 +28,12 @@ class CommandCollector:
         data = self._load_module(module_path)
         
         # 如果command或description是列表，则用换行连接
-        if isinstance(command, list):
-            command = '\n'.join(command)
-        if isinstance(description, list):
-            description = '\n'.join(description)
+        # if isinstance(command, list):
+        #     command = '\n'.join(command)
+        # if isinstance(description, list):
+        #     description = '\n'.join(description)
+        command = '\n'.join(command)
+        description = '\n'.join(description)
             
         # 找到并替换
         for idx, cmd in enumerate(data):
@@ -60,8 +62,11 @@ class CommandCollector:
         self._save_module(module_path, data)
         print(f"命令已添加到模块 [{module}]")
     
-    def modify_command(self, module: str, command_index: int = None, command: str = None, description: str = None):
+    def modify_command(self, module: str, command_index: int = None, command: List[str] = None, description: List[str] = None):
         """修改指定模块的命令或描述"""
+        command = '\n'.join(command)
+        description = '\n'.join(description)
+        
         module_path = self._get_module_path(module)
         if not module_path.exists():
             print(f"模块 [{module}] 不存在")
@@ -138,20 +143,8 @@ class CommandCollector:
             return []
         return self._load_module(module_path)
 
-    def list_commands(self, module: str) -> List[Dict]:
-        """列出指定模块的所有命令（带索引号）"""
-        init()  # 初始化colorama
-        print()
-        module_path = self._get_module_path(module)
-        if not module_path.exists():
-            print(f"模块 [{module}] 不存在")
-            return False
-        
-        commands = self._load_module(module_path)
-        if not commands:
-            print(f"模块 [{module}] 中没有命令")
-            return True
-        
+    def _show_commands(self, module: str, commands: List[Dict]) -> None:
+        """显示指定模块的所有命令"""
         print(f"模块 [{module}] 中的命令:")
         for idx, cmd in enumerate(commands):
             # 分割命令和描述为多行
@@ -167,8 +160,24 @@ class CommandCollector:
             
             # 描述行：每行前加#
             for desc in desc_lines:
-                print(f"{' ' * (len(str(idx)) + 2)}{Fore.GREEN}#{desc}{Fore.RESET}")
-        return True
+                print(f"{' ' * (len(str(idx)) + 2)}{Fore.GREEN}# {desc}{Fore.RESET}")
+
+    def list_commands(self, module: str) -> List[Dict]:
+        """列出指定模块的所有命令（带索引号）"""
+        init()  # 初始化colorama
+        print()
+        module_path = self._get_module_path(module)
+        if not module_path.exists():
+            print(f"模块 [{module}] 不存在")
+            return []
+        
+        commands = self._load_module(module_path)
+        if not commands:
+            print(f"模块 [{module}] 中没有命令")
+            return []
+        
+        self._show_commands(module, commands)
+        return commands
 
     def search_commands(self, keyword: str, _module: str = None) -> Dict[str, List[Dict]]:
         """全局搜索命令"""
@@ -187,6 +196,9 @@ class CommandCollector:
             ]
             if commands:
                 results[module] = commands
+
+        for module, commands in results.items():
+            self._show_commands(module, commands)
         return results
 
     def _load_module(self, path: Path) -> List[Dict]:

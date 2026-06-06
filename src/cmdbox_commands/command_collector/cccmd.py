@@ -108,8 +108,8 @@ def setup_main_parser():
     )
     modify_parser.add_argument('module', help='目标模块名称')
     modify_parser.add_argument('-i', '--index', type=int, required=True, help='命令索引')
-    modify_parser.add_argument('-c', '--command', required=False, help='修改命令内容')
-    modify_parser.add_argument('-d', '--description', required=False, help='修改命令描述信息')
+    modify_parser.add_argument('-c', '--command', action='append', required=False, help='修改命令内容')
+    modify_parser.add_argument('-d', '--description', action='append', required=False, help='修改命令描述信息')
     modify_parser.add_argument('-h', '--help', action='help', help='显示此帮助信息')
 
     # delete 命令
@@ -121,19 +121,8 @@ def setup_main_parser():
         usage="cccmd del [-h|--help] module [--index INDEX]"
     )
     delete_parser.add_argument("module", help="模块名称")
-    delete_parser.add_argument("--index", type=int, help="要删除的命令索引（不指定则删除整个模块）")
+    delete_parser.add_argument("-i", "--index", type=int, help="要删除的命令索引（不指定则删除整个模块）")
     delete_parser.add_argument('-h', '--help', action='help', help='显示此帮助信息')
-
-    # 列出模块
-    modules_parser = subparsers.add_parser(
-        'modules',
-        help='列出所有模块',
-        formatter_class=CustomHelpFormatter,
-        add_help=False,
-        usage="cccmd modules [-h|--help]"
-    )
-    modules_parser.add_argument("module", help="模块名称")
-    modules_parser.add_argument('-h', '--help', action='help', help='显示此帮助信息')
 
     # 列出模块/命令
     list_parser = subparsers.add_parser(
@@ -198,7 +187,9 @@ def main():
             collector.add_command(args.module, commands, descriptions)
         
         elif args.action == "modify":
-            collector.modify_command(args.module, args.index, args.command, args.description)
+            commands = [_multiline_arg(c) for c in args.command]
+            descriptions = [_multiline_arg(d) for d in args.description]
+            collector.modify_command(args.module, args.index, commands, descriptions)
             collector.list_commands(args.module)
         elif args.action == "del":
             res = collector.delete_command(args.module, args.index)
@@ -208,8 +199,6 @@ def main():
                 #else:
                 #    collector.list_modules()
 
-        elif args.action == "modules":
-            collector.list_modules()
         elif args.action == "list":
             if args.module:  # 如果指定了模块
                 collector.list_commands(args.module)
@@ -217,11 +206,8 @@ def main():
                 collector.list_modules()
         elif args.action == "search":
             # 添加对模块的支持
-            results = collector.search_commands(args.keyword, args.module)
-            for module, commands in results.items():
-                print(f"\n模块 [{module}]:")
-                for cmd in commands:
-                    print(f"{cmd['command']: <30} # {cmd['description']}")
+            collector.search_commands(args.keyword, args.module)
+            
     except KeyboardInterrupt:
         print("\nCtrl+C")
         sys.exit(0)
