@@ -64,8 +64,10 @@ class CommandCollector:
     
     def modify_command(self, module: str, command_index: int = None, command: List[str] = None, description: List[str] = None):
         """修改指定模块的命令或描述"""
-        command = '\n'.join(command)
-        description = '\n'.join(description)
+        if command:
+            command = '\n'.join(command)
+        if description:
+            description = '\n'.join(description)
         
         module_path = self._get_module_path(module)
         if not module_path.exists():
@@ -73,23 +75,25 @@ class CommandCollector:
             return False
         data = self._load_module(module_path)
         
-        if command_index is None:
+        if command_index is None or len(str(command_index)) == 0:
             print(f"必须指定命令索引")
             return False
         elif command_index < 0 or command_index >= len(data):
             print(f"命令索引 [{command_index}] 超出范围")
             return False
         
-        if command is None and description is None:
+        if not command and not description:
             print(f"必须指定修改后的命令或描述")
             return False
         
-        if command is not None:
+        if command:
             data[command_index]['command'] = command
-        if description is not None:
+        if description:
             data[command_index]['description'] = description
         
         self._save_module(module_path, data)
+        self._show_commands(module, data)
+                
         print(f"命令已更新到模块 [{module}]")
 
     def delete_command(self, module: str, command_index: int = None):

@@ -187,10 +187,14 @@ def main():
             collector.add_command(args.module, commands, descriptions)
         
         elif args.action == "modify":
-            commands = [_multiline_arg(c) for c in args.command]
-            descriptions = [_multiline_arg(d) for d in args.description]
+            commands = None
+            descriptions = None
+            if args.command:
+                commands = [_multiline_arg(c) for c in args.command]
+            if args.description:
+                descriptions = [_multiline_arg(d) for d in args.description]
             collector.modify_command(args.module, args.index, commands, descriptions)
-            collector.list_commands(args.module)
+            # collector.list_commands(args.module)
         elif args.action == "del":
             res = collector.delete_command(args.module, args.index)
             if res:
